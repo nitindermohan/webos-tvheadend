@@ -27,3 +27,6 @@ service/node_modules
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# brainstorming visual companion
+.superpowers/
