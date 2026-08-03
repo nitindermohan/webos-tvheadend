@@ -23,4 +23,18 @@ describe('RemoteKeys', () => {
         });
         expect(unique.length).toBe(codes.length);
     });
+
+    it('is frozen, so reassigning a key code has no effect', () => {
+        const original = RemoteKeys.OK;
+        try {
+            // In non-strict mode this assignment fails silently; in strict
+            // mode (as ES modules always are) it throws a TypeError. Either
+            // way the object must be left unchanged, so the throw is caught
+            // rather than asserted on.
+            (RemoteKeys as { [k: string]: number }).OK = 999;
+        } catch (error) {
+            // expected in strict mode - fall through to the assertion below
+        }
+        expect(RemoteKeys.OK).toBe(original);
+    });
 });

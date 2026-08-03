@@ -10,7 +10,7 @@
  * so pressing Guide with ares-inspect attached reports the real value. If it
  * differs, correcting it here is the only change required.
  */
-const RemoteKeys = {
+const RemoteKeys = Object.freeze({
     OK: 13,
     CHANNEL_UP: 33,
     CHANNEL_DOWN: 34,
@@ -36,6 +36,6 @@ const RemoteKeys = {
     KEY_G: 71,
     KEY_R: 82,
     KEY_Y: 89
-};
+} as const);
 
 export default RemoteKeys;
