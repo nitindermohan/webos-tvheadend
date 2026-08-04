@@ -238,3 +238,55 @@ body {
     background-color: rgba(0, 0, 0, 0.5);
     padding: 10px;
 }
+
+.filterRail {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 900px;
+    box-sizing: border-box;
+    padding: 18px 24px;
+    display: flex;
+    align-items: center;
+    background-color: rgba(5, 8, 12, 0.93);
+    z-index: 9;
+}
+
+.filterPill {
+    font-size: 26px;
+    color: rgba(233, 238, 244, 0.7);
+    background-color: rgba(255, 255, 255, 0.07);
+    border: 2px solid transparent;
+    border-radius: 8px;
+    padding: 8px 18px;
+    margin-right: 10px;
+    white-space: nowrap;
+}
+
+.filterPill.active {
+    color: #0a0e13;
+    background-color: #ffffff;
+    font-weight: 700;
+}
+
+.filterPill.focused {
+    border-color: #ffcc4d;
+    color: #ffffff;
+}
+
+.filterPill.active.focused {
+    color: #0a0e13;
+}
+
+.channelListEmptyBanner {
+    position: absolute;
+    top: 96px;
+    left: 0;
+    width: 900px;
+    box-sizing: border-box;
+    padding: 16px 24px;
+    font-size: 24px;
+    color: #ffcc4d;
+    background-color: rgba(5, 8, 12, 0.93);
+    z-index: 9;
+}
