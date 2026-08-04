@@ -326,7 +326,7 @@ const TV = () => {
             if (currentChannel && currentChannel.getChannelID() !== currentChannelPosition) {
                 updateStreamSource(currentChannel.getStreamUrl());
                 // store last used channel
-                StorageHelper.setLastChannelIndex(currentChannelPosition);
+                StorageHelper.setLastChannelUuid(currentChannel.getUUID());
             }
         }
     }, [currentChannelPosition]);

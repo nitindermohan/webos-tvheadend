@@ -29,6 +29,7 @@ const App = () => {
         setTvhDataService,
         epgData,
         imageCache,
+        setCurrentChannelPosition,
         setPersistentAuthToken,
         setAnimationsEnabled
     } = useContext(AppContext);
@@ -105,6 +106,7 @@ const App = () => {
             const channels = await tvhDataService.retrieveM3UChannels();
             setDebugInfo("Updating channels ("+channels.length+")...");
             epgData.updateChannels(channels);
+            setCurrentChannelPosition(StorageHelper.resolveInitialChannelPosition(epgData.getChannels()));
             setDebugInfo("Channels retrieved true...");
             setIsChannelsRetrieved(true);
 

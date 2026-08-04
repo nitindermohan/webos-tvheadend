@@ -2,7 +2,6 @@ import React, { createContext, useState } from 'react';
 import { AppViewState } from './App';
 import EPGData from './models/EPGData';
 import TVHDataService from './services/TVHDataService';
-import StorageHelper from './utils/StorageHelper';
 
 export enum AppVisibilityState {
     FOCUSED = 'focused',
@@ -43,7 +42,7 @@ export const AppContextProvider = ({ children }: { children: JSX.Element }) => {
     const [tvhDataService, setTvhDataService] = useState<TVHDataService>();
     const [epgData] = useState(new EPGData());
     const [imageCache] = useState(new Map<URL, HTMLImageElement>());
-    const [currentChannelPosition, setCurrentChannelPosition] = useState(StorageHelper.getLastChannelIndex());
+    const [currentChannelPosition, setCurrentChannelPosition] = useState(0);
     const [currentRecordingPosition, setCurrentRecordingPosition] = useState(-1);
     const [appVisibilityState, setAppVisibilityState] = useState(AppVisibilityState.FOCUSED);
     const [persistentAuthToken, setPersistentAuthToken] = useState<string>();
