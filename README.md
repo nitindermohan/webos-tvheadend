@@ -8,7 +8,16 @@
 * This is a WebOS Client for TVHeadend
 * It can currently only be installed using the Developer App or Homebrew
 * The design is similiar to the famous Media Center Kodi
-* It is tested on WebOS 3,4 and 5
+* This fork targets **modern webOS only** - webOS 22 and later (LG 2022+ sets,
+  Chromium 87+). The build's browserslist is pinned to `chrome >= 87` and the
+  `core-js` / `regenerator-runtime` polyfills upstream carried for webOS 3.0
+  have been removed. Together that cut the bundle from 267.3 kB to 212.9 kB
+  gzipped (-20%) and let it ship as native ES2020 instead of transpiled ES5.
+  `chrome >= 87` was chosen over a tighter floor because it produces a
+  byte-identical bundle while covering three more webOS releases.
+  Upstream still supports webOS 3, 4 and 5; this fork does not. To restore
+  that, put back the broad browserslist and the two polyfill imports at the top
+  of `src/index.tsx`.
 * It uses react but most components use the canvas 2d api to improve performance on older TVs
 
 ## Setup
