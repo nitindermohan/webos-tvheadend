@@ -5,6 +5,7 @@ import EPGEvent from './EPGEvent';
  */
 export default class EPGChannel {
     private events: EPGEvent[];
+    private tagUuids: string[] = [];
 
     constructor(
         protected icon: URL | undefined,
@@ -50,5 +51,13 @@ export default class EPGChannel {
 
     setStreamUrl(streamUrl: URL) {
         this.streamUrl = streamUrl;
+    }
+
+    getTagUuids() {
+        return this.tagUuids;
+    }
+
+    setTagUuids(tagUuids: string[]) {
+        this.tagUuids = tagUuids;
     }
 }
