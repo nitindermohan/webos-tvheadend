@@ -121,8 +121,26 @@ export const AppContextProvider = ({ children }: { children: JSX.Element }) => {
         },
         favoritesVersion: favoritesVersion,
         bumpFavoritesVersion: () => {
+            // mirror setActiveFilter's reconcile just above: setFavoriteUuids
+            // re-runs applyFilter and can shrink the filtered view (e.g. the
+            // channel playing gets un-favorited while the favorites filter is
+            // active), which can leave currentChannelPosition pointing past
+            // the end of the new, shorter array. Capture who is playing
+            // before the filter re-applies, then re-resolve their position
+            // afterwards - using the ref, not the closed-over state value,
+            // for the same stale-closure reason setActiveFilter does (Task 8a)
+            const playingChannel = epgData.getChannel(currentChannelPositionRef.current);
+
             epgData.setFavoriteUuids(FavoritesStore.all());
             setFavoritesVersion((version) => version + 1);
+
+            // guard -1 defensively - resetting to 0 would change what is playing
+            if (playingChannel) {
+                const position = epgData.getChannelPositionByUuid(playingChannel.getUUID());
+                if (position >= 0) {
+                    setCurrentChannelPosition(position);
+                }
+            }
         }
     };
 
