@@ -1,0 +1,60 @@
+name: build
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Test
+        run: npm test -- --watchAll=false
+
+      - name: Read app version
+        id: app
+        run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Build web app
+        env:
+          # Node 20's OpenSSL 3 rejects webpack 4's md4 hash (this is CRA 4).
+          NODE_OPTIONS: --openssl-legacy-provider
+          # Actions sets CI=true, which makes CRA treat lint warnings as
+          # errors. The repo carries six pre-existing warnings that predate
+          # this workflow - three unused mock-adapter imports in
+          # src/config/Config.ts, which belong to a mock/prod toggle block
+          # that is switched by hand and must NOT be "fixed" by deleting the
+          # imports, and three explicit-any in src/utils/TVHSettingsTest.ts.
+          # Turning those into build failures would block every run, so the
+          # build keeps them as warnings. Remove this once they are cleared.
+          CI: false
+        run: npm run build
+
+      - name: Install webOS CLI
+        run: npm install -g @webosose/ares-cli
+
+      - name: Package ipk
+        run: ares-package build service
+
+      - name: Upload ipk
+        uses: actions/upload-artifact@v4
+        with:
+          name: com.willinux.tvh.app_${{ steps.app.outputs.version }}
+          path: '*.ipk'
+          if-no-files-found: error
