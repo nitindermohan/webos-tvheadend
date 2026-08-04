@@ -15,6 +15,7 @@ import { AppViewState } from '../App';
 import RemoteKeys from '../utils/RemoteKeys';
 import { ALL_CHANNELS } from '../models/ChannelFilter';
 import HoldGesture from '../utils/HoldGesture';
+import { shouldSwitchStream } from '../utils/StreamIdentity';
 
 export enum State {
     TV = 'tv',
@@ -42,6 +43,12 @@ const TV = () => {
     const timeoutChangeChannel = useRef<NodeJS.Timeout | null>(null);
     const audioTracksRef = useRef<AudioTrackList>();
     const textTracksRef = useRef<TextTrackList>();
+    // the uuid of the channel actually playing, so the effect below can tell
+    // a genuine zap apart from currentChannelPosition merely being
+    // reconciled to a new index for the same channel (AppContext's
+    // setActiveFilter and bumpFavoritesVersion both do this) - see
+    // shouldSwitchStream for why an index comparison cannot do this job
+    const playingUuid = useRef('');
 
     // hold-to-open-audio-settings state for the OK button on live TV, mirroring
     // ChannelList's hold-to-favorite gesture (Task 11) - see HoldGesture.ts for
@@ -362,8 +369,20 @@ const TV = () => {
     };
 
     const updateStreamSource = (streamUrl: URL) => {
-        // show the channel info, if the channel was changed
-        setState(State.CHANNEL_INFO);
+        // show the channel info, if the channel was changed - but don't let a
+        // zap steal the screen away from an overlay that owns it: CH+/CH-
+        // must zap from every screen (ChannelList's RAIL/DETAILS states and
+        // TVGuide's record-dialog guard deliberately fall through to their
+        // normal zap handling rather than closing first), and channel
+        // settings has no CH+/CH- handling of its own so the keypress bubbles
+        // straight here too. showCurrentChannelNumber() below still gives
+        // feedback via the channel-number header over whichever of these is
+        // open.
+        setState((prev) =>
+            prev === State.CHANNEL_LIST || prev === State.EPG || prev === State.CHANNEL_SETTINGS
+                ? prev
+                : State.CHANNEL_INFO
+        );
 
         changeSource(streamUrl);
 
@@ -384,15 +403,17 @@ const TV = () => {
     }, []);
 
     useEffect(() => {
-        // change channel in case we have channels retrieved and channel position changed
-        if (epgData.getChannelCount() > 0) {
-            const currentChannel = getCurrentChannel();
-            if (currentChannel && currentChannel.getChannelID() !== currentChannelPosition) {
-                updateStreamSource(currentChannel.getStreamUrl());
-                // store last used channel
-                StorageHelper.setLastChannelUuid(currentChannel.getUUID());
-            }
-        }
+        // switch the stream only when the channel actually playing changed -
+        // not merely whenever currentChannelPosition changes, since that also
+        // moves when a filter reconciles the still-playing channel to a new
+        // index (filtering must never interrupt playback)
+        if (epgData.getChannelCount() === 0) return;
+        const currentChannel = getCurrentChannel();
+        if (!currentChannel || !shouldSwitchStream(currentChannel, playingUuid.current)) return;
+        playingUuid.current = currentChannel.getUUID();
+        updateStreamSource(currentChannel.getStreamUrl());
+        // store last used channel
+        StorageHelper.setLastChannelUuid(currentChannel.getUUID());
     }, [currentChannelPosition]);
 
     useEffect(() => {
