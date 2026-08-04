@@ -32,6 +32,7 @@ const FilterRail = (props: {
     activeFilter: ChannelFilter;
     focusedIndex: number;
     isFocused: boolean;
+    onSelect: (index: number) => void;
 }) => (
     <div className={props.isFocused ? 'filterRail focused' : 'filterRail'}>
         {props.entries.map((entry, index) => {
@@ -43,7 +44,20 @@ const FilterRail = (props: {
                 classNames.push('focused');
             }
             return (
-                <div className={classNames.join(' ')} key={index}>
+                <div
+                    className={classNames.join(' ')}
+                    key={index}
+                    onClick={(event) => {
+                        // the rail renders inside ChannelList's wrapper, whose
+                        // onClick selects the focused channel and closes the
+                        // list - without stopping propagation, clicking a pill
+                        // would zap and dismiss instead of filtering. The LG
+                        // Magic Remote has a pointer, so this is a real remote
+                        // path, not just a desktop-browser one.
+                        event.stopPropagation();
+                        props.onSelect(index);
+                    }}
+                >
                     {entry.label}
                 </div>
             );

@@ -627,14 +627,22 @@ const ChannelList = (props: {
         }
     };
 
-    const applyFocusedFilter = () => {
-        const entry = railEntries[railFocusedIndex];
+    const applyFilterAt = (index: number) => {
+        const entry = railEntries[index];
         if (entry) {
             setActiveFilter(entry.filter);
             // the filtered view has changed - restart at the top of it
             setChannelPosition(0);
         }
         setState(State.NORMAL);
+    };
+
+    const applyFocusedFilter = () => applyFilterAt(railFocusedIndex);
+
+    /** Pointer path: the Magic Remote has a cursor, so pills are clickable. */
+    const selectRailEntry = (index: number) => {
+        setRailFocusedIndex(index);
+        applyFilterAt(index);
     };
 
     const scrollDown = () => {
@@ -759,10 +767,13 @@ const ChannelList = (props: {
                 activeFilter={activeFilter}
                 focusedIndex={railFocusedIndex}
                 isFocused={state === State.RAIL}
+                onSelect={selectRailEntry}
             />
 
             {epgData.isFilterEmpty() && (
-                <div className="channelListEmptyBanner">No favorites yet &mdash; hold OK on a channel to add it</div>
+                <div className="channelListEmptyBanner" onClick={(event) => event.stopPropagation()}>
+                    No favorites yet &mdash; hold OK on a channel to add it
+                </div>
             )}
 
             <canvas ref={canvas} width={getWidth()} height={getHeight()} style={{ display: 'block' }} />
