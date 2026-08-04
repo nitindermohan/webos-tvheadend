@@ -37,6 +37,48 @@ Still to do:
 - **Hit targets.** Pills and action rows are sized for a 10-foot D-pad UI, not
   for pointing. Review minimum target sizes.
 
+### Fix the filter rail overflowing the channel list
+
+**User-reported, and the most visible defect on the list today.** With a real
+server's tag set the category pills spill out of the channel list column and
+look broken.
+
+The numbers, measured against a live server with 14 channel tags (longest name
+13 chars): the pills need roughly **2282px**, and `.filterRail` gives them
+**852px** — 900px wide minus `24px` padding each side. About 2.7x over.
+
+The mechanism, all in `.filterRail` / `.filterPill` (`src/styles/app.css:242`):
+
+- `display: flex` with **no `flex-wrap`**, so it defaults to `nowrap`.
+- **no `overflow`**, so it defaults to `visible`.
+- The rail is `position: absolute` inside the 900px-wide list.
+
+So the pills first squash (flex items shrink by default, mangling the labels)
+and then spill outside the 900px column, over the video behind it.
+
+**The trap when fixing this:** `ChannelList.tsx` hardcodes
+`mFilterRailHeight = 86` and every canvas row position is derived from it -
+`getTopFrom(position) = position * mChannelLayoutHeight + mFilterRailHeight - scrollY`,
+and the pointer hit-testing in `src/utils/ChannelListGeometry.ts` takes the
+same value as `railHeight`. Adding `flex-wrap: wrap` would make the rail two or
+three rows tall while that constant stayed at 86, silently pushing every channel
+row up underneath the rail and putting the click targets out of step with what
+is drawn - a much worse bug than the one being fixed. Any fix must either keep
+the rail exactly one row tall, or measure the rendered height and feed it to
+both consumers.
+
+Options worth weighing:
+
+- **Horizontal scroll with the focused pill scrolled into view.** Keeps the
+  height fixed, so `mFilterRailHeight` stays valid. Needs a pointer affordance
+  (see the pointer-scrolling item below) and edge fade hinting.
+- **Cap what reaches the rail** and move the rest behind an overflow entry.
+  The category picker already drops tags covering >=95% of channels, so the
+  mechanism for trimming the set exists.
+- **Wrap to a measured height**, deriving `mFilterRailHeight` from the DOM
+  rather than hardcoding it - which also closes the "rail height is a hardcoded
+  guess" item below.
+
 ### Make the lists scrollable by pointer
 
 The channel list and EPG are canvas-rendered with their own scroll model
