@@ -7,13 +7,18 @@ import ChannelListDetails from './ChannelListDetails';
 import EPGEvent from '../models/EPGEvent';
 import EPGChannel from '../models/EPGChannel';
 import EPGUtils from '../utils/EPGUtils';
+import FilterRail, { buildRailFilters, RailEntry } from './FilterRail';
+import CategoryStore from '../utils/CategoryStore';
+import RemoteKeys from '../utils/RemoteKeys';
+import { isSameFilter } from '../models/ChannelFilter';
 
 const VERTICAL_SCROLL_TOP_PADDING_ITEM = 5;
 const IS_DEBUG = false;
 
 enum State {
     NORMAL = 'normal',
-    DETAILS = 'details'
+    DETAILS = 'details',
+    RAIL = 'rail'
 }
 
 interface DetailsState {
@@ -25,9 +30,17 @@ const ChannelList = (props: {
     toggleRecording: (event: EPGEvent, callback: () => unknown) => void;
     unmount: () => void;
 }) => {
-    const { epgData, imageCache, currentChannelPosition, setCurrentChannelPosition, isAnimationsEnabled } = useContext(
-        AppContext
-    );
+    const {
+        epgData,
+        imageCache,
+        currentChannelPosition,
+        setCurrentChannelPosition,
+        isAnimationsEnabled,
+        channelTags,
+        activeFilter,
+        setActiveFilter,
+        favoritesVersion
+    } = useContext(AppContext);
     const canvas = useRef<HTMLCanvasElement>(null);
     const listWrapper = useRef<HTMLDivElement>(null);
     const scrollAnimationId = useRef(0);
@@ -48,12 +61,19 @@ const ChannelList = (props: {
     const mChannelLayoutHeight = 90;
     const mChannelLayoutWidth = 900;
     const mChannelLayoutBackgroundFocus = 'rgba(29,170,226,1)';
+    const mFilterRailHeight = 86;
 
     const [state, setState] = useState<State>(State.NORMAL);
     const [detailsState, setDetailsState] = useState<DetailsState>();
 
+    const railEntries: RailEntry[] = buildRailFilters(channelTags, CategoryStore.getSelectedTagUuids());
+    const [railFocusedIndex, setRailFocusedIndex] = useState(() => {
+        const index = railEntries.findIndex((entry) => isSameFilter(entry.filter, activeFilter));
+        return index >= 0 ? index : 1;
+    });
+
     const getTopFrom = (position: number) => {
-        const y = position * mChannelLayoutHeight; //+ this.mChannelLayoutMargin;
+        const y = position * mChannelLayoutHeight + mFilterRailHeight;
         return y - scrollY.current;
     };
 
@@ -317,7 +337,9 @@ const ChannelList = (props: {
 
     const getLastVisibleChannelPosition = () => {
         const y = scrollY.current;
-        const screenHeight = getHeight();
+        // rows start mFilterRailHeight lower than the canvas top, so that much
+        // less vertical space is actually available for them to render into
+        const screenHeight = getHeight() - mFilterRailHeight;
         let position = Math.floor((y + screenHeight) / mChannelLayoutHeight);
 
         const channelCount = epgData.getChannelCount();
@@ -354,6 +376,34 @@ const ChannelList = (props: {
 
     const handleKeyPress = (event: React.KeyboardEvent<HTMLDivElement>) => {
         const keyCode = event.keyCode;
+
+        if (state === State.RAIL) {
+            switch (keyCode) {
+                case RemoteKeys.ARROW_LEFT:
+                    event.stopPropagation();
+                    setRailFocusedIndex(railFocusedIndex > 0 ? railFocusedIndex - 1 : railEntries.length - 1);
+                    return;
+                case RemoteKeys.ARROW_RIGHT:
+                    event.stopPropagation();
+                    setRailFocusedIndex(railFocusedIndex < railEntries.length - 1 ? railFocusedIndex + 1 : 0);
+                    return;
+                case RemoteKeys.ARROW_DOWN:
+                case RemoteKeys.OK:
+                    event.stopPropagation();
+                    applyFocusedFilter();
+                    return;
+                case RemoteKeys.BACK:
+                    event.stopPropagation();
+                    setState(State.NORMAL);
+                    return;
+                case RemoteKeys.CHANNEL_UP:
+                case RemoteKeys.CHANNEL_DOWN:
+                    // fall through to the normal handler so zapping always works
+                    break;
+                default:
+                    break;
+            }
+        }
 
         switch (keyCode) {
             case 33: // programm up
@@ -441,13 +491,22 @@ const ChannelList = (props: {
     };
 
     const scrollUp = () => {
-        // if we reached 0 we scroll to end of list
         if (channelPosition.current === 0) {
-            setChannelPosition(epgData.getChannelCount() - 1);
+            // at the top row, move focus into the filter rail
+            setState(State.RAIL);
         } else {
-            // channel down
             setChannelPosition(channelPosition.current - 1);
         }
+    };
+
+    const applyFocusedFilter = () => {
+        const entry = railEntries[railFocusedIndex];
+        if (entry) {
+            setActiveFilter(entry.filter);
+            // the filtered view has changed - restart at the top of it
+            setChannelPosition(0);
+        }
+        setState(State.NORMAL);
     };
 
     const scrollDown = () => {
@@ -536,6 +595,25 @@ const ChannelList = (props: {
         }
     }, [state]);
 
+    useEffect(() => {
+        // the filtered view or the favorite markers changed - repaint
+        recalculateAndRedraw(false);
+    }, [activeFilter, favoritesVersion]);
+
+    useEffect(() => {
+        // activeFilter can change from outside this component (the background
+        // tag load re-applying the persisted filter, the first-run picker) -
+        // keep the rail's keyboard focus following the pill that is actually
+        // active rather than the one it happened to start on. Left/Right
+        // navigation while the rail is open never touches activeFilter, so
+        // this cannot fight with the user moving between pills.
+        const index = railEntries.findIndex((entry) => isSameFilter(entry.filter, activeFilter));
+        if (index >= 0) {
+            setRailFocusedIndex(index);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [activeFilter, channelTags]);
+
     return (
         <div
             id="channellist-wrapper"
@@ -546,6 +624,17 @@ const ChannelList = (props: {
             onClick={handleClick}
             className="channelList"
         >
+            <FilterRail
+                entries={railEntries}
+                activeFilter={activeFilter}
+                focusedIndex={railFocusedIndex}
+                isFocused={state === State.RAIL}
+            />
+
+            {epgData.isFilterEmpty() && (
+                <div className="channelListEmptyBanner">No favorites yet &mdash; hold OK on a channel to add it</div>
+            )}
+
             <canvas ref={canvas} width={getWidth()} height={getHeight()} style={{ display: 'block' }} />
 
             {state === State.DETAILS && (
