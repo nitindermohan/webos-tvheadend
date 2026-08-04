@@ -177,6 +177,26 @@ export default class TVHSettingsTest {
         if (isForbidden) {
             errorText = 'User is missing privileges to access the stream url';
         }
+        // TVHeadend answers a stream request it cannot serve by closing the
+        // connection without sending any HTTP response at all - no status code
+        // to key off. Node reports that as "socket hang up" / ECONNRESET, which
+        // tells the user nothing. It means TVHeadend accepted the request and
+        // then could not start a subscription: every tuner or IPTV slot busy
+        // (EPG grabbing counts), or the source is at its max_streams limit.
+        if (TVHSettingsTest.isConnectionDropped(errorText)) {
+            errorText =
+                'TVHeadend closed the connection without answering. It usually means no tuner ' +
+                'or stream slot was free - check Status > Subscriptions in TVHeadend, and the ' +
+                'network max_streams limit. Settings can still be saved.';
+        }
         return errorText;
+    }
+
+    private static isConnectionDropped(errorText: string): boolean {
+        if (!errorText) {
+            return false;
+        }
+        const text = errorText.toLowerCase();
+        return text.indexOf('socket hang up') >= 0 || text.indexOf('econnreset') >= 0;
     }
 }

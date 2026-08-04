@@ -9,6 +9,7 @@ import TVHSettingsTest, { TestResults } from '../utils/TVHSettingsTest';
 import AppContext from '../AppContext';
 import TestResult from './TestResult';
 import StorageHelper from '../utils/StorageHelper';
+import { isSetupValid } from '../utils/SetupValidation';
 
 const TVHSettings = (props: { unmount: () => void }) => {
     const { tvhDataService, setTvhDataService } = useContext(AppContext);
@@ -70,12 +71,7 @@ const TVHSettings = (props: { unmount: () => void }) => {
         setIsLoading(false);
     };
 
-    const isValidSetup = () => {
-        return (
-            (testResults?.serverInfo.accessible && testResults.playlist.accessible && testResults.stream.accessible) ||
-            false
-        );
-    };
+    const isValidSetup = () => isSetupValid(testResults);
 
     useEffect(() => {
         // read state from storage if exists
