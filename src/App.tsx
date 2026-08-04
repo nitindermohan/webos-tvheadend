@@ -34,7 +34,8 @@ const App = () => {
         setCurrentChannelPosition,
         setPersistentAuthToken,
         setAnimationsEnabled,
-        setChannelTags
+        setChannelTags,
+        setActiveFilter
     } = useContext(AppContext);
 
     const [isChannelsRetrieved, setIsChannelsRetrieved] = useState(false);
@@ -121,8 +122,10 @@ const App = () => {
                 .retrieveChannelTags()
                 .then((tags) => {
                     setChannelTags(tags);
-                    // re-apply the filter now that channels carry their tags
-                    epgData.setFilter(CategoryStore.getActiveFilter());
+                    // re-apply the filter now that channels carry their tags - routed
+                    // through the context so the playing channel is pinned and the
+                    // position reconciled, same as any other filter change
+                    setActiveFilter(CategoryStore.getActiveFilter());
                 })
                 .catch((error) => console.log('Failed to load channel tags:', error));
 

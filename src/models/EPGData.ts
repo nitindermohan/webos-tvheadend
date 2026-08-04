@@ -14,6 +14,9 @@ export default class EPGData {
     private filter: ChannelFilter = ALL_CHANNELS;
     private favoriteUuids: string[] = [];
     private filterEmpty = false;
+    /** The channel currently playing. Kept visible under every filter so the
+     *  position index stays valid and filtering never interrupts playback. */
+    private pinnedChannelUuid = '';
 
     //constructor() {
     //new MockDataService().getChannels(this.channels);
@@ -132,6 +135,13 @@ export default class EPGData {
         this.applyFilter();
     }
 
+    /** Pin a channel into every filtered view regardless of whether it matches -
+     *  used to keep the playing channel's position valid across filter changes. */
+    setPinnedChannelUuid(uuid: string): void {
+        this.pinnedChannelUuid = uuid;
+        this.applyFilter();
+    }
+
     /** True when the active filter matched nothing and we fell back to the full lineup. */
     isFilterEmpty(): boolean {
         return this.filterEmpty;
@@ -155,7 +165,10 @@ export default class EPGData {
     /**
      * Recompute the active view. When a filter matches nothing we fall back to
      * the full lineup so channel zapping never dead-ends, and flag it so the UI
-     * can explain what happened.
+     * can explain what happened. The pinned channel (the one currently playing)
+     * is folded into the view at its natural lineup position so its index stays
+     * valid even when the filter does not match it - but it is never counted as
+     * a genuine match, so it cannot mask an otherwise-empty filter.
      */
     private applyFilter(): void {
         if (this.filter.kind === 'all') {
@@ -164,8 +177,20 @@ export default class EPGData {
             return;
         }
 
-        const filtered = this.allChannels.filter((channel) => this.matchesFilter(channel));
-        this.filterEmpty = filtered.length === 0;
+        const filtered: EPGChannel[] = [];
+        let matchCount = 0;
+        for (const channel of this.allChannels) {
+            const matches = this.matchesFilter(channel);
+            if (matches) {
+                matchCount++;
+            }
+            const isPinned = this.pinnedChannelUuid !== '' && channel.getUUID() === this.pinnedChannelUuid;
+            if (matches || isPinned) {
+                filtered.push(channel);
+            }
+        }
+
+        this.filterEmpty = matchCount === 0;
         this.channels = this.filterEmpty ? this.allChannels : filtered;
     }
 

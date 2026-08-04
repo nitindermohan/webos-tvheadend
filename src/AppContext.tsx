@@ -86,9 +86,26 @@ export const AppContextProvider = ({ children }: { children: JSX.Element }) => {
         setChannelTags: (value: ChannelTag[]) => setChannelTags(value),
         activeFilter: activeFilter,
         setActiveFilter: (value: ChannelFilter) => {
+            // pin the playing channel before the filter changes so its index
+            // stays valid in the new filtered view - filtering must never
+            // interrupt playback
+            const playingChannel = epgData.getChannel(currentChannelPosition);
+            if (playingChannel) {
+                epgData.setPinnedChannelUuid(playingChannel.getUUID());
+            }
+
             CategoryStore.setActiveFilter(value);
             epgData.setFilter(value);
             setActiveFilterState(value);
+
+            // the pin guarantees the channel is present, but guard -1 defensively -
+            // resetting to 0 would change what is playing
+            if (playingChannel) {
+                const position = epgData.getChannelPositionByUuid(playingChannel.getUUID());
+                if (position >= 0) {
+                    setCurrentChannelPosition(position);
+                }
+            }
         },
         favoritesVersion: favoritesVersion,
         bumpFavoritesVersion: () => {

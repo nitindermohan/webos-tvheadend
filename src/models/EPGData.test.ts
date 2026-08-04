@@ -93,4 +93,62 @@ describe('EPGData filtering', () => {
         expect(data.getChannelPositionByUuid('uuid-c')).toBe(1);
         expect(data.getChannelPositionByUuid('uuid-b')).toBe(-1);
     });
+
+    it('keeps the pinned channel visible under a filter it does not match', () => {
+        const data = buildData();
+        data.setPinnedChannelUuid('uuid-b');
+        data.setFilter(tagFilter('tag-movies'));
+        expect(data.getChannelCount()).toBe(3);
+        expect(data.getChannel(0)?.getUUID()).toBe('uuid-a');
+        expect(data.getChannel(1)?.getUUID()).toBe('uuid-b');
+        expect(data.getChannel(2)?.getUUID()).toBe('uuid-c');
+    });
+
+    it('does not duplicate a pinned channel the filter already matches', () => {
+        const data = buildData();
+        data.setPinnedChannelUuid('uuid-a');
+        data.setFilter(tagFilter('tag-movies'));
+        expect(data.getChannelCount()).toBe(2);
+        expect(data.getChannelPositionByUuid('uuid-a')).toBe(0);
+    });
+
+    it('resolves the pinned channel to a valid position under any filter', () => {
+        const data = buildData();
+        data.setPinnedChannelUuid('uuid-d');
+        data.setFilter(tagFilter('tag-news'));
+        expect(data.getChannelPositionByUuid('uuid-d')).toBeGreaterThanOrEqual(0);
+    });
+
+    it('still reports an empty filter when only the pinned channel survives', () => {
+        const data = buildData();
+        data.setPinnedChannelUuid('uuid-a');
+        data.setFilter(tagFilter('tag-gone'));
+        expect(data.isFilterEmpty()).toBe(true);
+        expect(data.getChannelCount()).toBe(4);
+    });
+
+    it('ignores a pinned uuid that is not in the lineup', () => {
+        const data = buildData();
+        data.setPinnedChannelUuid('uuid-nope');
+        data.setFilter(tagFilter('tag-movies'));
+        expect(data.getChannelCount()).toBe(2);
+    });
+
+    it('keeps the pin across a channel list replacement', () => {
+        const data = buildData();
+        data.setPinnedChannelUuid('uuid-b');
+        data.updateChannels([
+            channel(1, 'uuid-a', ['tag-movies']),
+            channel(2, 'uuid-b', ['tag-news'])
+        ]);
+        data.setFilter(tagFilter('tag-movies'));
+        expect(data.getChannelCount()).toBe(2);
+    });
+
+    it('leaves the full lineup alone when the filter is all', () => {
+        const data = buildData();
+        data.setPinnedChannelUuid('uuid-b');
+        expect(data.getChannelCount()).toBe(4);
+        expect(data.getAllChannels().length).toBe(4);
+    });
 });
