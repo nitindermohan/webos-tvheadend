@@ -290,3 +290,9 @@ body {
     background-color: rgba(5, 8, 12, 0.93);
     z-index: 9;
 }
+
+.favoriteAction {
+    font-size: 26px;
+    color: #ffcc4d;
+    padding: 12px 0;
+}

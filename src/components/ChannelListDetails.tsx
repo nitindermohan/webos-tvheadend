@@ -3,6 +3,7 @@ import AppContext from '../AppContext';
 import EPGChannel from '../models/EPGChannel';
 import EPGEvent from '../models/EPGEvent';
 import EPGUtils from '../utils/EPGUtils';
+import FavoritesStore from '../utils/FavoritesStore';
 
 const ChannelListDetails = (props: {
     isRecording: (event: EPGEvent) => boolean;
@@ -11,7 +12,7 @@ const ChannelListDetails = (props: {
     nextEvents: EPGEvent[]; // next events in line
     nextSameEvents: EPGEvent[]; // next events with same title
 }) => {
-    const { locale } = useContext(AppContext);
+    const { locale, bumpFavoritesVersion } = useContext(AppContext);
     const channelListDetailsWrapper = useRef<HTMLDivElement>(null);
 
     const formatTime = (event: EPGEvent | undefined, date?: boolean): string | undefined => {
@@ -55,6 +56,26 @@ const ChannelListDetails = (props: {
             className="channelListDetails"
             style={{ display: 'block' }}
         >
+            {props.epgChannel && (
+                <div
+                    className="favoriteAction"
+                    onClick={(event) => {
+                        // ChannelList's own wrapper has an onClick that selects
+                        // the focused channel and closes the list (its mouse
+                        // equivalent of a short OK press) - without stopping
+                        // propagation here, every click on this row would
+                        // bubble up and immediately close the list right after
+                        // toggling the favorite
+                        event.stopPropagation();
+                        FavoritesStore.toggle(props.epgChannel!.getUUID());
+                        bumpFavoritesVersion();
+                    }}
+                >
+                    {FavoritesStore.has(props.epgChannel.getUUID())
+                        ? '★ Remove from favorites'
+                        : '☆ Add to favorites'}
+                </div>
+            )}
             <div>
                 <div className="timeframe">
                     {props.currentEvent && formatTime(props.currentEvent, true) + ' ' + formatTime(props.currentEvent)}

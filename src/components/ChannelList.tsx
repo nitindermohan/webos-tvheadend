@@ -11,6 +11,8 @@ import FilterRail, { buildRailFilters, RailEntry } from './FilterRail';
 import CategoryStore from '../utils/CategoryStore';
 import RemoteKeys from '../utils/RemoteKeys';
 import { isSameFilter } from '../models/ChannelFilter';
+import FavoritesStore from '../utils/FavoritesStore';
+import HoldGesture from '../utils/HoldGesture';
 
 const VERTICAL_SCROLL_TOP_PADDING_ITEM = 5;
 const IS_DEBUG = false;
@@ -39,7 +41,8 @@ const ChannelList = (props: {
         channelTags,
         activeFilter,
         setActiveFilter,
-        favoritesVersion
+        favoritesVersion,
+        bumpFavoritesVersion
     } = useContext(AppContext);
     const canvas = useRef<HTMLCanvasElement>(null);
     const listWrapper = useRef<HTMLDivElement>(null);
@@ -50,6 +53,16 @@ const ChannelList = (props: {
     const focusedEventOffset = useRef(0);
     const nextEvents = useRef<EPGEvent[]>([]);
     const nextSameEvents = useRef<EPGEvent[]>([]);
+
+    // hold-to-favorite state for the OK button. The gesture instance is
+    // created once and is stable for the component's lifetime; onToggleFavoriteRef
+    // is a trampoline updated every render so the gesture always invokes the
+    // *current* render's toggleFavorite closure (which itself closes over
+    // channelPosition and epgData) without HoldGesture needing to be
+    // recreated - see HoldGesture.ts for why this state machine is a
+    // separate, independently tested class rather than inline refs.
+    const onToggleFavoriteRef = useRef<() => void>(() => undefined);
+    const holdGesture = useRef(new HoldGesture(600, () => onToggleFavoriteRef.current()));
 
     const mChannelLayoutTextSize = 32;
     const mChannelLayoutEventTextSize = 26;
@@ -291,6 +304,25 @@ const ChannelList = (props: {
             );
             IS_DEBUG && CanvasUtils.drawDebugRect(canvas, channelImageRect);
         }
+
+        // favorite marker - placed in the gap between the right-aligned channel
+        // number (ends at left+70) and the channel name/recording mark (starts
+        // at left+90), not at left+30 as originally proposed: that x sits
+        // inside the channel number's own column (a right-aligned 2-3 digit
+        // number at this font size typically spans from about left+20 to
+        // left+70) and the number is the far left-edge of the row anyway - the
+        // channel logo is drawn on the *right* edge of the row (see
+        // getDrawingRectForChannelImage: right = width - margin, left = right -
+        // height * 1.3, i.e. roughly x 780-897 of the 900-wide row), nowhere
+        // near the left edge, so it was never at risk of colliding with it.
+        if (FavoritesStore.has(channel.getUUID())) {
+            CanvasUtils.writeText(canvas, '★', drawingRect.left + 80, drawingRect.middle, {
+                fontSize: mChannelLayoutTextSize,
+                textAlign: 'center',
+                fillStyle: '#ffcc4d',
+                isBold: true
+            });
+        }
     };
 
     const getDrawingRectForChannelImage = (position: number, image: HTMLImageElement) => {
@@ -421,10 +453,9 @@ const ChannelList = (props: {
                 event.stopPropagation();
                 props.unmount();
                 break;
-            case 13: // ok button -> switch to focused channel
+            case RemoteKeys.OK:
                 event.stopPropagation();
-                setCurrentChannelPosition(channelPosition.current);
-                props.unmount();
+                handleOkDown();
                 break;
             case 82: // keyboard 'r'
             case 403: {
@@ -461,6 +492,48 @@ const ChannelList = (props: {
 
         // pass unhandled events to parent
         if (!event.isPropagationStopped) return event;
+    };
+
+    const handleKeyUp = (event: React.KeyboardEvent<HTMLDivElement>) => {
+        if (event.keyCode === RemoteKeys.OK) {
+            event.stopPropagation();
+            handleOkUp();
+        }
+    };
+
+    const toggleFavorite = () => {
+        const channel = epgData.getChannel(channelPosition.current);
+        if (!channel) return;
+        FavoritesStore.toggle(channel.getUUID());
+        // the favorites-filtered view depends on epgData's cached favorite set,
+        // so it must be refreshed before the canvas redraws or a channel
+        // removed from favorites while "Favorites" is the active filter would
+        // still be positioned as if it were present
+        bumpFavoritesVersion();
+        // bumpFavoritesVersion schedules a React state update, and the effect
+        // watching favoritesVersion (Task 10) will repaint on the next render -
+        // but that is at least a frame away. Redraw immediately here too so the
+        // star appears the instant the hold fires rather than one frame later.
+        updateCanvas();
+    };
+    // keep the trampoline pointed at the latest closure every render, so the
+    // long-lived HoldGesture instance never invokes a stale toggleFavorite
+    onToggleFavoriteRef.current = toggleFavorite;
+
+    const handleOkDown = () => {
+        holdGesture.current.down();
+    };
+
+    const handleOkUp = () => {
+        // up() itself distinguishes "hold already fired" from "this press's
+        // key-down was consumed elsewhere before it ever reached down()" -
+        // e.g. the filter rail intercepts OK and calls applyFocusedFilter()
+        // before the main switch (and handleOkDown) ever runs. Either way it
+        // reports no select; only a genuine short press reports true.
+        if (holdGesture.current.up()) {
+            setCurrentChannelPosition(channelPosition.current);
+            props.unmount();
+        }
     };
 
     const toggleRecording = () => {
@@ -586,6 +659,7 @@ const ChannelList = (props: {
         return () => {
             // stop animation when unmounting
             cancelAnimationFrame(scrollAnimationId.current);
+            holdGesture.current.cancel();
         };
     }, []);
 
@@ -620,6 +694,7 @@ const ChannelList = (props: {
             ref={listWrapper}
             tabIndex={-1}
             onKeyDown={handleKeyPress}
+            onKeyUp={handleKeyUp}
             onWheel={handleScrollWheel}
             onClick={handleClick}
             className="channelList"
