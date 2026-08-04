@@ -1,3 +1,5 @@
+import { readStoredStringArray } from './StoredStringArray';
+
 const STORAGE_KEY_FAVORITES = 'favoriteChannels';
 
 /**
@@ -7,20 +9,7 @@ const STORAGE_KEY_FAVORITES = 'favoriteChannels';
  */
 export default class FavoritesStore {
     private static read(): string[] {
-        const raw = localStorage.getItem(STORAGE_KEY_FAVORITES);
-        if (!raw) {
-            return [];
-        }
-        try {
-            const parsed = JSON.parse(raw);
-            if (!Array.isArray(parsed)) {
-                return [];
-            }
-            return parsed.filter((entry) => typeof entry === 'string');
-        } catch (error) {
-            console.log('Failed to parse favorites, starting empty:', error);
-            return [];
-        }
+        return readStoredStringArray(STORAGE_KEY_FAVORITES);
     }
 
     private static write(uuids: string[]): void {

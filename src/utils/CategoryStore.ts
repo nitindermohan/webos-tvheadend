@@ -1,26 +1,10 @@
 import ChannelFilter, { ALL_CHANNELS } from '../models/ChannelFilter';
+import { readStoredStringArray } from './StoredStringArray';
 
 const STORAGE_KEY_SELECTED_TAGS = 'categorySelectedTags';
 const STORAGE_KEY_KNOWN_TAGS = 'categoryKnownTags';
 const STORAGE_KEY_CONFIGURED = 'categoriesConfigured';
 const STORAGE_KEY_ACTIVE_FILTER = 'activeChannelFilter';
-
-const readStringArray = (key: string): string[] => {
-    const raw = localStorage.getItem(key);
-    if (!raw) {
-        return [];
-    }
-    try {
-        const parsed = JSON.parse(raw);
-        if (!Array.isArray(parsed)) {
-            return [];
-        }
-        return parsed.filter((entry) => typeof entry === 'string');
-    } catch (error) {
-        console.log('Failed to parse', key, error);
-        return [];
-    }
-};
 
 /**
  * Which channel tags appear on the filter rail, whether the user has been
@@ -32,7 +16,7 @@ export default class CategoryStore {
     }
 
     static getSelectedTagUuids(): string[] {
-        return readStringArray(STORAGE_KEY_SELECTED_TAGS);
+        return readStoredStringArray(STORAGE_KEY_SELECTED_TAGS);
     }
 
     /** Saving a selection - even an empty one - counts as configuring. */
@@ -43,7 +27,7 @@ export default class CategoryStore {
 
     /** Every tag uuid seen on the server so far, used to flag new arrivals. */
     static getKnownTagUuids(): string[] {
-        return readStringArray(STORAGE_KEY_KNOWN_TAGS);
+        return readStoredStringArray(STORAGE_KEY_KNOWN_TAGS);
     }
 
     static setKnownTagUuids(uuids: string[]): void {

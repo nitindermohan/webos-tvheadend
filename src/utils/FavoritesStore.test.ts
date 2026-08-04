@@ -37,11 +37,23 @@ describe('FavoritesStore', () => {
         expect(FavoritesStore.all()).toEqual(['uuid-a', 'uuid-b']);
     });
 
-    it('recovers from corrupted storage instead of throwing', () => {
-        localStorage.setItem('favoriteChannels', 'not json');
-        expect(FavoritesStore.all()).toEqual([]);
-        FavoritesStore.add('uuid-a');
-        expect(FavoritesStore.all()).toEqual(['uuid-a']);
+    describe('when stored data is corrupt', () => {
+        let consoleLogSpy: jest.SpyInstance;
+
+        beforeEach(() => {
+            consoleLogSpy = jest.spyOn(console, 'log').mockImplementation(() => undefined);
+        });
+
+        afterEach(() => {
+            consoleLogSpy.mockRestore();
+        });
+
+        it('recovers from corrupted storage instead of throwing', () => {
+            localStorage.setItem('favoriteChannels', 'not json');
+            expect(FavoritesStore.all()).toEqual([]);
+            FavoritesStore.add('uuid-a');
+            expect(FavoritesStore.all()).toEqual(['uuid-a']);
+        });
     });
 
     it('ignores non-string entries in storage', () => {
