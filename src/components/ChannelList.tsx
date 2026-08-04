@@ -716,7 +716,6 @@ const ChannelList = (props: {
         if (index >= 0) {
             setRailFocusedIndex(index);
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [activeFilter, channelTags]);
 
     return (

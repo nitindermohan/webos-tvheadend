@@ -48,6 +48,10 @@ const ChannelListDetails = (props: {
         return itemList;
     };
 
+    // bound to a const so the callback below narrows without a non-null
+    // assertion - `props.epgChannel` is not narrowed inside a closure
+    const favoriteChannel = props.epgChannel;
+
     return (
         <div
             id="channel-list-details"
@@ -56,7 +60,7 @@ const ChannelListDetails = (props: {
             className="channelListDetails"
             style={{ display: 'block' }}
         >
-            {props.epgChannel && (
+            {favoriteChannel && (
                 <div
                     className="favoriteAction"
                     onClick={(event) => {
@@ -67,11 +71,11 @@ const ChannelListDetails = (props: {
                         // bubble up and immediately close the list right after
                         // toggling the favorite
                         event.stopPropagation();
-                        FavoritesStore.toggle(props.epgChannel!.getUUID());
+                        FavoritesStore.toggle(favoriteChannel.getUUID());
                         bumpFavoritesVersion();
                     }}
                 >
-                    {FavoritesStore.has(props.epgChannel.getUUID())
+                    {FavoritesStore.has(favoriteChannel.getUUID())
                         ? '★ Remove from favorites'
                         : '☆ Add to favorites'}
                 </div>
