@@ -2,6 +2,10 @@ import React, { createContext, useState } from 'react';
 import { AppViewState } from './App';
 import EPGData from './models/EPGData';
 import TVHDataService from './services/TVHDataService';
+import ChannelTag from './models/ChannelTag';
+import ChannelFilter from './models/ChannelFilter';
+import CategoryStore from './utils/CategoryStore';
+import FavoritesStore from './utils/FavoritesStore';
 
 export enum AppVisibilityState {
     FOCUSED = 'focused',
@@ -31,6 +35,12 @@ type AppContext = {
     setPersistentAuthToken: (value: string) => void;
     isAnimationsEnabled: boolean;
     setAnimationsEnabled: (value: boolean) => void;
+    channelTags: ChannelTag[];
+    setChannelTags: (value: ChannelTag[]) => void;
+    activeFilter: ChannelFilter;
+    setActiveFilter: (value: ChannelFilter) => void;
+    favoritesVersion: number;
+    bumpFavoritesVersion: () => void;
 };
 
 const AppContext = createContext({} as AppContext);
@@ -47,6 +57,9 @@ export const AppContextProvider = ({ children }: { children: JSX.Element }) => {
     const [appVisibilityState, setAppVisibilityState] = useState(AppVisibilityState.FOCUSED);
     const [persistentAuthToken, setPersistentAuthToken] = useState<string>();
     const [isAnimationsEnabled, setAnimationsEnabled] = useState<boolean>(true);
+    const [channelTags, setChannelTags] = useState<ChannelTag[]>([]);
+    const [activeFilter, setActiveFilterState] = useState<ChannelFilter>(CategoryStore.getActiveFilter());
+    const [favoritesVersion, setFavoritesVersion] = useState(0);
 
     const appContext: AppContext = {
         menuState: menuState,
@@ -68,7 +81,20 @@ export const AppContextProvider = ({ children }: { children: JSX.Element }) => {
         persistentAuthToken: persistentAuthToken,
         setPersistentAuthToken: (value: string) => setPersistentAuthToken(value),
         isAnimationsEnabled: isAnimationsEnabled,
-        setAnimationsEnabled: (value: boolean) => setAnimationsEnabled(value)
+        setAnimationsEnabled: (value: boolean) => setAnimationsEnabled(value),
+        channelTags: channelTags,
+        setChannelTags: (value: ChannelTag[]) => setChannelTags(value),
+        activeFilter: activeFilter,
+        setActiveFilter: (value: ChannelFilter) => {
+            CategoryStore.setActiveFilter(value);
+            epgData.setFilter(value);
+            setActiveFilterState(value);
+        },
+        favoritesVersion: favoritesVersion,
+        bumpFavoritesVersion: () => {
+            epgData.setFavoriteUuids(FavoritesStore.all());
+            setFavoritesVersion((version) => version + 1);
+        }
     };
 
     return <AppContext.Provider value={appContext}>{children}</AppContext.Provider>;

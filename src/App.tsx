@@ -8,6 +8,8 @@ import AppContext, { AppVisibilityState } from './AppContext';
 import EPGChannel from './models/EPGChannel';
 import StorageHelper from './utils/StorageHelper';
 import Menu, { MenuItem } from './components/Menu';
+import FavoritesStore from './utils/FavoritesStore';
+import CategoryStore from './utils/CategoryStore';
 
 export enum AppViewState {
     TV,
@@ -31,7 +33,8 @@ const App = () => {
         imageCache,
         setCurrentChannelPosition,
         setPersistentAuthToken,
-        setAnimationsEnabled
+        setAnimationsEnabled,
+        setChannelTags
     } = useContext(AppContext);
 
     const [isChannelsRetrieved, setIsChannelsRetrieved] = useState(false);
@@ -106,9 +109,22 @@ const App = () => {
             const channels = await tvhDataService.retrieveM3UChannels();
             setDebugInfo("Updating channels ("+channels.length+")...");
             epgData.updateChannels(channels);
+            // restore favorites and the persisted filter before resolving position
+            epgData.setFavoriteUuids(FavoritesStore.all());
+            epgData.setFilter(CategoryStore.getActiveFilter());
             setCurrentChannelPosition(StorageHelper.resolveInitialChannelPosition(epgData.getChannels()));
             setDebugInfo("Channels retrieved true...");
             setIsChannelsRetrieved(true);
+
+            // categories are additive - never block startup on them
+            tvhDataService
+                .retrieveChannelTags()
+                .then((tags) => {
+                    setChannelTags(tags);
+                    // re-apply the filter now that channels carry their tags
+                    epgData.setFilter(CategoryStore.getActiveFilter());
+                })
+                .catch((error) => console.log('Failed to load channel tags:', error));
 
             // safe persistent token if available
             if (channels.length > 0) {
