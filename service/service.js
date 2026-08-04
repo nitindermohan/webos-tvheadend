@@ -3,18 +3,20 @@ const httpProxyHandler = require('./httpproxyhandler');
 const Service = require('webos-service');
 
 // create webos service
-var service = new Service('com.willinux.tvh.app.proxy');
+var service = new Service('com.tvh.app.proxy');
+service.activityManager.idleTimeout = 300;
 
 // keep service alive 
 var keepAlive;
 service.activityManager.create("keepAlive", function (activity) {
+    console.log("keep alive called");
     keepAlive = activity;
 });
 
 // When you're done, complete the activity 
-// service.activityManager.complete(keepAlive, function (activity) {
-//     console.log("completed activity");
-// });
+service.activityManager.complete(keepAlive, function (activity) {
+     console.log("completed activity");
+});
 
 /**
  * allow read/write access to files

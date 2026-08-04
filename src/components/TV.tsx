@@ -121,6 +121,19 @@ const TV = () => {
                 changeChannelPosition(currentChannelPosition + 1);
                 break;
             case RemoteKeys.ARROW_RIGHT:
+                // ChannelSettings only consumes OK/BACK/YELLOW/'y', so its arrow
+                // keys bubble up to here. Without this guard, right-arrow would
+                // swap the open audio/subtitle panel for the channel list rather
+                // than moving within the panel. (th0enix 88a0ddf)
+                // NOTE: up/down still zap channels while that panel is open -
+                // same root cause, wider fix, tracked in the UI redesign backlog.
+                if (state === State.CHANNEL_SETTINGS) {
+                    event.stopPropagation();
+                    break;
+                }
+                event.stopPropagation();
+                setState(State.CHANNEL_LIST);
+                break;
             case RemoteKeys.KEY_C:
                 event.stopPropagation();
                 setState(State.CHANNEL_LIST);

@@ -33,16 +33,13 @@ jobs:
 
       - name: Build web app
         env:
-          # Node 20's OpenSSL 3 rejects webpack 4's md4 hash (this is CRA 4).
-          NODE_OPTIONS: --openssl-legacy-provider
-          # Actions sets CI=true, which makes CRA treat lint warnings as
-          # errors. The repo carries six pre-existing warnings that predate
-          # this workflow - three unused mock-adapter imports in
-          # src/config/Config.ts, which belong to a mock/prod toggle block
-          # that is switched by hand and must NOT be "fixed" by deleting the
-          # imports, and three explicit-any in src/utils/TVHSettingsTest.ts.
-          # Turning those into build failures would block every run, so the
-          # build keeps them as warnings. Remove this once they are cleared.
+          # Actions sets CI=true, which makes CRA treat warnings as errors.
+          # Two remain, both emitted by webpack rather than eslint:
+          #   "Critical dependency: the request of a dependency is an expression"
+          # They come from ilib's dynamic require() inside @enact/moonstone, so
+          # no eslint-disable can silence them and they are not ours to fix.
+          # The source lint warnings this flag used to cover are gone as of the
+          # th0enix merge. Drop this if the Enact dependency stops emitting them.
           CI: false
         run: npm run build
 
@@ -55,6 +52,6 @@ jobs:
       - name: Upload ipk
         uses: actions/upload-artifact@v4
         with:
-          name: com.willinux.tvh.app_${{ steps.app.outputs.version }}
+          name: com.tvh.app_${{ steps.app.outputs.version }}
           path: '*.ipk'
           if-no-files-found: error

@@ -1,7 +1,7 @@
 {
-    "id": "com.willinux.tvh.app",
-    "version": "0.8.4",
-    "vendor": "WillinuX-Code",
+    "id": "com.tvh.app",
+    "version": "1.1.0",
+    "vendor": "th0enix",
     "type": "web",
     "main": "index.html",
     "title": "TVheadend Client",

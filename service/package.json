@@ -1,6 +1,6 @@
 {
-    "name": "com.willinux.tvh.app",
-    "version": "0.8.4",
+    "name": "com.tvh.app",
+    "version": "1.1.0",
     "description": "TVHeadend webos service",
     "main": "service.js",
     "author": "Jens Willhardt",

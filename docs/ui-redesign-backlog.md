@@ -65,6 +65,14 @@ deferred as cosmetic:
 
 ## Interaction items worth revisiting
 
+- **Arrow keys leak past the audio/subtitle panel.** `ChannelSettings`
+  consumes only OK, BACK, YELLOW and 'y' (`ChannelSettings.tsx:61-73`); every
+  arrow bubbles up to `TV.tsx`. Right-arrow was fixed during the th0enix merge
+  (it used to swap the open panel for the channel list), but **up/down still
+  zap channels while the panel is open** instead of moving within the track
+  list. Same root cause, wider fix — the panel should own its arrows, or
+  `TV.tsx` should gate all four on `State.CHANNEL_SETTINGS`.
+
 - **Menu and category picker swallow CH+/CH−.** Every other screen zaps.
   The menu returns early on `menuState`; the picker unmounts `<TV/>` entirely
   so there is nothing playing to zap.

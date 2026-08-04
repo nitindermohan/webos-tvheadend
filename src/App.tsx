@@ -231,6 +231,10 @@ const App = () => {
         switch (keyCode) {
             case RemoteKeys.GREEN:
             case RemoteKeys.KEY_G:
+                // The settings screen owns the whole viewport and has its own
+                // spotlight focus; opening the menu over it strands the user
+                // with no way back to the form. (th0enix 88a0ddf)
+                if (appViewState === AppViewState.SETTINGS) break;
                 event.stopPropagation();
                 setMenuState(!menuState);
                 break;
