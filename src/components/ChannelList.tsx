@@ -75,6 +75,12 @@ const ChannelList = (props: {
     const mChannelLayoutWidth = 900;
     const mChannelLayoutBackgroundFocus = 'rgba(29,170,226,1)';
     const mFilterRailHeight = 86;
+    // x-offset of the name column (channel name, recording mark, event
+    // progress bar + text) from the row's left edge. Was a bare 90 in three
+    // places (plus the two derived width calculations below) until the
+    // favorite star needed room to its left - see the favorite marker
+    // comment in drawChannelItem for why this moved from 90 to 114.
+    const mChannelLayoutNameLeft = 114;
 
     const [state, setState] = useState<State>(State.NORMAL);
     const [detailsState, setDetailsState] = useState<DetailsState>();
@@ -225,7 +231,7 @@ const ChannelList = (props: {
         // channel line
         const currentEvent = epgData.getEventAtTimestamp(position, EPGUtils.getNow());
         const channelIconWidth = mChannelLayoutHeight * 1.3;
-        const channelNameWidth = mChannelLayoutWidth - channelIconWidth - 90;
+        const channelNameWidth = mChannelLayoutWidth - channelIconWidth - mChannelLayoutNameLeft;
 
         const leftBeforeRecMark = drawingRect.left;
         // recording mark
@@ -233,7 +239,7 @@ const ChannelList = (props: {
             const radius = 10;
             canvas.fillStyle = '#FF0000';
             canvas.beginPath();
-            canvas.arc(drawingRect.left + 90 + radius, drawingRect.middle - radius, radius, 0, 2 * Math.PI);
+            canvas.arc(drawingRect.left + mChannelLayoutNameLeft + radius, drawingRect.middle - radius, radius, 0, 2 * Math.PI);
             canvas.fill();
             drawingRect.left += 2 * radius + mChannelLayoutPadding;
         }
@@ -241,7 +247,7 @@ const ChannelList = (props: {
         CanvasUtils.writeText(
             canvas,
             channel.getName(),
-            drawingRect.left + 90,
+            drawingRect.left + mChannelLayoutNameLeft,
             drawingRect.top + mChannelLayoutHeight * 0.33,
             {
                 fontSize: mChannelLayoutTextSize,
@@ -256,7 +262,10 @@ const ChannelList = (props: {
         if (currentEvent) {
             // channel event progress bar
             const channelEventProgressRect = new Rect();
-            channelEventProgressRect.left = drawingRect.left + 90;
+            // shares the name column's left edge (mChannelLayoutNameLeft) so
+            // the progress bar/event-text row stays aligned under the
+            // channel name above it rather than the two rows drifting apart
+            channelEventProgressRect.left = drawingRect.left + mChannelLayoutNameLeft;
             channelEventProgressRect.right = channelEventProgressRect.left + 80;
             channelEventProgressRect.top = drawingRect.top + mChannelLayoutHeight * 0.66;
             channelEventProgressRect.bottom = channelEventProgressRect.top + mChannelLayoutEventTextSize * 0.5;
@@ -276,7 +285,8 @@ const ChannelList = (props: {
             );
 
             // channel event text
-            const channelEventWidth = mChannelLayoutWidth - channelIconWidth - 90 - channelEventProgressRect.width;
+            const channelEventWidth =
+                mChannelLayoutWidth - channelIconWidth - mChannelLayoutNameLeft - channelEventProgressRect.width;
             CanvasUtils.writeText(
                 canvas,
                 currentEvent.getTitle(),
@@ -306,17 +316,23 @@ const ChannelList = (props: {
         }
 
         // favorite marker - placed in the gap between the right-aligned channel
-        // number (ends at left+70) and the channel name/recording mark (starts
-        // at left+90), not at left+30 as originally proposed: that x sits
-        // inside the channel number's own column (a right-aligned 2-3 digit
-        // number at this font size typically spans from about left+20 to
-        // left+70) and the number is the far left-edge of the row anyway - the
-        // channel logo is drawn on the *right* edge of the row (see
-        // getDrawingRectForChannelImage: right = width - margin, left = right -
-        // height * 1.3, i.e. roughly x 780-897 of the 900-wide row), nowhere
-        // near the left edge, so it was never at risk of colliding with it.
+        // number (right edge pinned at left+70, fontSize 38) and the name
+        // column (now left+mChannelLayoutNameLeft=114, fontSize 32). A 32px
+        // '★' glyph is roughly 1em (~32px) wide, so centering it in the
+        // original 70-90 gap (at left+80, spanning ~64-96) still overlapped
+        // both the number and the name column by a few px on each side - the
+        // gap was only 20px wide, too narrow for a 32px glyph regardless of
+        // where within it the glyph was centered. The name column (and the
+        // recording mark and both width calculations that must stay in step
+        // with it) moved right by 24px instead of shrinking the star, opening
+        // a 70-114 gap; the star now centers at left+92, spanning ~76-108 -
+        // clear of the number (70) by ~6px and the name column (114) by ~6px.
+        // The channel logo remains on the row's *right* edge (see
+        // getDrawingRectForChannelImage: right = width - margin, left = right
+        // - height * 1.3, i.e. x 780-897 of the 900-wide row) and is
+        // unaffected by any of this.
         if (FavoritesStore.has(channel.getUUID())) {
-            CanvasUtils.writeText(canvas, '★', drawingRect.left + 80, drawingRect.middle, {
+            CanvasUtils.writeText(canvas, '★', drawingRect.left + 92, drawingRect.middle, {
                 fontSize: mChannelLayoutTextSize,
                 textAlign: 'center',
                 fillStyle: '#ffcc4d',
