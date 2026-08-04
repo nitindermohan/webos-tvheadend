@@ -1,4 +1,4 @@
-import React, { createContext, useState } from 'react';
+import React, { createContext, useRef, useState } from 'react';
 import { AppViewState } from './App';
 import EPGData from './models/EPGData';
 import TVHDataService from './services/TVHDataService';
@@ -52,7 +52,19 @@ export const AppContextProvider = ({ children }: { children: JSX.Element }) => {
     const [tvhDataService, setTvhDataService] = useState<TVHDataService>();
     const [epgData] = useState(new EPGData());
     const [imageCache] = useState(new Map<URL, HTMLImageElement>());
-    const [currentChannelPosition, setCurrentChannelPosition] = useState(0);
+    const [currentChannelPosition, setCurrentChannelPositionState] = useState(0);
+    // Callers of setActiveFilter can be several renders removed from the one
+    // that produced their closure (App.tsx's reloadData is captured once by a
+    // useEffect with an empty-ish dependency array and keeps running
+    // asynchronously afterwards). Reading currentChannelPosition as a plain
+    // closed-over value would then read a value frozen at that earlier render.
+    // A ref updated synchronously at every write stays current regardless of
+    // which render's closure performs the write.
+    const currentChannelPositionRef = useRef(currentChannelPosition);
+    const setCurrentChannelPosition = (value: number) => {
+        currentChannelPositionRef.current = value;
+        setCurrentChannelPositionState(value);
+    };
     const [currentRecordingPosition, setCurrentRecordingPosition] = useState(-1);
     const [appVisibilityState, setAppVisibilityState] = useState(AppVisibilityState.FOCUSED);
     const [persistentAuthToken, setPersistentAuthToken] = useState<string>();
@@ -89,7 +101,7 @@ export const AppContextProvider = ({ children }: { children: JSX.Element }) => {
             // pin the playing channel before the filter changes so its index
             // stays valid in the new filtered view - filtering must never
             // interrupt playback
-            const playingChannel = epgData.getChannel(currentChannelPosition);
+            const playingChannel = epgData.getChannel(currentChannelPositionRef.current);
             if (playingChannel) {
                 epgData.setPinnedChannelUuid(playingChannel.getUUID());
             }
