@@ -10,13 +10,15 @@ import StorageHelper from './utils/StorageHelper';
 import Menu, { MenuItem } from './components/Menu';
 import FavoritesStore from './utils/FavoritesStore';
 import CategoryStore from './utils/CategoryStore';
+import CategorySetup from './components/CategorySetup';
 
 export enum AppViewState {
     TV,
     SETTINGS,
     RECORDINGS,
     HELP,
-    CONTACT
+    CONTACT,
+    CATEGORIES
 }
 
 const App = () => {
@@ -60,6 +62,12 @@ const App = () => {
             label: 'Setup',
             action: () => updateAppViewState(AppViewState.SETTINGS),
             isActive: appViewState === AppViewState.SETTINGS
+        },
+        {
+            icon: 'funnel',
+            label: 'Categories',
+            action: () => updateAppViewState(AppViewState.CATEGORIES),
+            isActive: appViewState === AppViewState.CATEGORIES
         },
         {
             icon: 'denselist',
@@ -126,6 +134,11 @@ const App = () => {
                     // through the context so the playing channel is pinned and the
                     // position reconciled, same as any other filter change
                     setActiveFilter(CategoryStore.getActiveFilter());
+                    // first run (or a fresh install) - send the user to the picker
+                    // once tags are actually available to choose from
+                    if (tags.length > 0 && !CategoryStore.isConfigured()) {
+                        setAppViewState(AppViewState.CATEGORIES);
+                    }
                 })
                 .catch((error) => console.log('Failed to load channel tags:', error));
 
@@ -300,6 +313,9 @@ const App = () => {
             {debugInfo && <div className="debug-info">{debugInfo}</div>}
             {menuState && <Menu items={menu} unmount={() => setAppViewState(AppViewState.TV)} />}
             {appViewState === AppViewState.SETTINGS && <TVHSettings unmount={() => setAppViewState(AppViewState.TV)} />}
+            {appViewState === AppViewState.CATEGORIES && (
+                <CategorySetup unmount={() => setAppViewState(AppViewState.TV)} />
+            )}
             {appViewState === AppViewState.TV && isChannelsRetrieved && <TV />}
             {appViewState === AppViewState.RECORDINGS && <Player />}
         </div>
