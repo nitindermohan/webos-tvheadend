@@ -13,6 +13,7 @@ import RemoteKeys from '../utils/RemoteKeys';
 import { isSameFilter } from '../models/ChannelFilter';
 import FavoritesStore from '../utils/FavoritesStore';
 import HoldGesture from '../utils/HoldGesture';
+import { channelPositionAt } from '../utils/ChannelListGeometry';
 
 const VERTICAL_SCROLL_TOP_PADDING_ITEM = 5;
 const IS_DEBUG = false;
@@ -613,8 +614,42 @@ const ChannelList = (props: {
         focus();
     };
 
-    const handleClick = () => {
-        setCurrentChannelPosition(channelPosition.current);
+    /**
+     * Which channel row a pointer click landed on, or -1 when it is not on a
+     * row. The row arithmetic lives in ChannelListGeometry so it can be tested
+     * against getTopFrom without a canvas; here we only turn a client point
+     * into a canvas-relative one and reject anything outside the list column.
+     * The canvas is mChannelLayoutWidth wide with no CSS scaling, so client
+     * pixels map 1:1 onto canvas pixels.
+     */
+    const channelPositionAtPoint = (clientX: number, clientY: number): number => {
+        const canvasElement = canvas.current;
+        if (!canvasElement) {
+            return -1;
+        }
+        const bounds = canvasElement.getBoundingClientRect();
+        const x = clientX - bounds.left;
+        if (x < 0 || x > mChannelLayoutWidth) {
+            return -1;
+        }
+        return channelPositionAt(clientY - bounds.top, {
+            railHeight: mFilterRailHeight,
+            rowHeight: mChannelLayoutHeight,
+            scrollY: scrollY.current,
+            channelCount: epgData.getChannelCount()
+        });
+    };
+
+    const handleClick = (event: React.MouseEvent<HTMLDivElement>) => {
+        // the rail, the empty banner and the details panel's action rows all
+        // stop propagation, so anything arriving here is a click on the list
+        // itself - but it can still miss every row (the gap beside the rail,
+        // below the last channel, or the details panel's own area)
+        const position = channelPositionAtPoint(event.clientX, event.clientY);
+        if (position < 0) {
+            return;
+        }
+        setCurrentChannelPosition(position);
         props.unmount();
     };
 
