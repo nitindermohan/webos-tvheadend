@@ -704,24 +704,44 @@ const TVGuide = (props: {
         const channelPosition = focusedChannelPosition.current;
 
         if (recordDialogEvent) {
-            // the record dialog owns the screen while it is open - stop the
+            // the record dialog owns the screen while it is open - keep the
             // grid's own key handling (arrow keys moving the focused event
-            // underneath it, OK re-opening/closing the dialog) from running,
-            // and stop the press from bubbling further up to TV.tsx, which
-            // would otherwise misinterpret an OK press meant for the
-            // dialog's own button as its hold-to-open-audio-settings gesture
-            // (TV.tsx has no way to know a dialog is showing here). BACK
-            // closes the dialog without acting; OK is left entirely to the
-            // dialog's focused button - Enact's Spottable wires
-            // select-on-keyup directly onto the button element itself, so
-            // it still fires regardless of this stopPropagation on an
-            // ancestor.
-            event.stopPropagation();
-            if (keyCode === RemoteKeys.BACK) {
-                setRecordDialogEvent(undefined);
-                focus();
+            // underneath it, OK re-opening/closing the dialog) from running.
+            // CH+/CH- must still zap from every screen (a hard constraint),
+            // so - exactly like the RAIL and DETAILS states elsewhere in
+            // this app - those fall through to the normal handler below
+            // instead of being swallowed here. Everything else is stopped
+            // rather than bubbling to TV.tsx, which has no way to know a
+            // dialog is showing: TV.tsx's own ARROW_UP/DOWN/LEFT/RIGHT
+            // handling has no state check either (it relies entirely on the
+            // active child view stopping propagation, same as this file
+            // does normally), so letting arrow keys bubble past here -
+            // which not stopping them would also do, since React ties
+            // "reaches Enact's window-level Spotlight listener" and
+            // "reaches TV.tsx's onKeyDown" to the same stopPropagation call
+            // - would zap the channel or open the channel list/menu behind
+            // the dialog instead of moving spotlight focus within it. See
+            // DialogPopup's focusAbortByDefault (used below) for how the
+            // dialog is still safely dismissable without arrow-key
+            // navigation. OK is left entirely to the dialog's focused
+            // button - Enact's Spottable wires select-on-keyup directly onto
+            // the button element itself, so it still fires regardless of
+            // this stopPropagation on an ancestor. BACK closes the dialog
+            // without acting.
+            switch (keyCode) {
+                case RemoteKeys.CHANNEL_UP:
+                case RemoteKeys.CHANNEL_DOWN:
+                    // fall through to the normal handler so zapping always works
+                    break;
+                case RemoteKeys.BACK:
+                    event.stopPropagation();
+                    setRecordDialogEvent(undefined);
+                    focus();
+                    return;
+                default:
+                    event.stopPropagation();
+                    return;
             }
-            return;
         }
 
         // do not pass this event to parents
@@ -984,6 +1004,13 @@ const TVGuide = (props: {
                     }
                     confirmText={epgData.isRecording(recordDialogEvent) ? 'Cancel recording' : 'Record'}
                     abortText="Close"
+                    // arrow keys are swallowed while this dialog is open (see
+                    // the recordDialogEvent guard above), so the user cannot
+                    // 5-way-navigate from Record to Close - default spotlight
+                    // focus to Close instead of Enact's own default (the
+                    // first-rendered, confirm button) so a reflexive OK press
+                    // dismisses rather than starts/cancels a recording
+                    focusAbortByDefault
                     confirmAction={() => {
                         props.toggleRecording(recordDialogEvent, () => updateCanvas());
                         setRecordDialogEvent(undefined);
