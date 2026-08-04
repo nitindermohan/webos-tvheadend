@@ -33,7 +33,7 @@ export default class MockHttpProxyServiceAdapter implements HttpProxyInterface {
             return (Promise.resolve(upcomintRecordingMock as unknown) as unknown) as TResult;
         } else if (url.includes('api/dvr/entry/grid_finished')) {
             return (Promise.resolve(recordingsMock as unknown) as unknown) as TResult;
-        } else if (url.includes('api/channeltag/list')) {
+        } else if (url.includes('api/channeltag/')) {
             return (Promise.resolve(channelTagsMock.result as unknown) as unknown) as TResult;
         } else if (url.includes('playlist/auth/channels') || url.includes('playlist/channels')) {
             return (Promise.resolve(channelM3UMock.result as unknown) as unknown) as TResult;

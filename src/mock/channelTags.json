@@ -3,25 +3,31 @@
     "result": {
         "entries": [
             {
-                "key": "9457a9fa922a3f4b3a5e2affcaa6c091",
-                "val": "TV channels"
+                "uuid": "9457a9fa922a3f4b3a5e2affcaa6c091",
+                "name": "TV channels",
+                "index": 0
             },
             {
-                "key": "2d54c363d362fc517d88f66048a0ae44",
-                "val": "Radio channels"
+                "uuid": "2d54c363d362fc517d88f66048a0ae44",
+                "name": "Radio channels",
+                "index": 0
             },
             {
-                "key": "a51d37f97a47ffb2208bc3f0e9fa3010",
-                "val": "SDTV"
+                "uuid": "a51d37f97a47ffb2208bc3f0e9fa3010",
+                "name": "SDTV",
+                "index": 0
             },
             {
-                "key": "7dfb969159aefe38655248e2a10084b4",
-                "val": "UHDTV"
+                "uuid": "7dfb969159aefe38655248e2a10084b4",
+                "name": "UHDTV",
+                "index": 0
             },
             {
-                "key": "ac291c2414188cb42d712138060f30d8",
-                "val": "HDTV"
+                "uuid": "ac291c2414188cb42d712138060f30d8",
+                "name": "HDTV",
+                "index": 0
             }
-        ]
+        ],
+        "total": 5
     }
 }

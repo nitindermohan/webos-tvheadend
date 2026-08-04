@@ -5,6 +5,8 @@ import EPGChannelRecording, { EPGChannelRecordingKind } from '../models/EPGChann
 import EPGCacheService from './EPGCacheService';
 import WebOSService from './WebOSService';
 import Config from '../config/Config';
+import ChannelTag from '../models/ChannelTag';
+import { applyChannelTags, TVHChannelTagEntry, TVHChannelEntry } from '../utils/ChannelTagJoin';
 
 export interface TVHDataServiceParms {
     tvhUrl: string;
@@ -70,6 +72,11 @@ interface TVHRecordingConfigEntry {
     // and many more
 }
 
+interface TVHGrid<T> {
+    entries: T[];
+    total: number;
+}
+
 interface DVRCallback {
     (recordings: EPGEvent[]): void;
 }
@@ -90,6 +97,8 @@ export default class TVHDataService {
     static API_DVR_RECORDINGS = 'api/dvr/entry/grid_finished?sort=disp_title';
     static API_DVR_DELETE = 'api/dvr/entry/remove?uuid=';
     static M3U_PLAYLIST = 'playlist/%schannels';
+    static API_CHANNEL_TAGS = 'api/channeltag/grid?limit=999';
+    static API_CHANNELS = 'api/channel/grid?limit=9999';
 
     //private serviceAdapter = new LunaServiceAdapter();
     private httpProxyServiceAdapter = Config.httpProxyServiceAdapter;
@@ -490,6 +499,33 @@ export default class TVHDataService {
         } catch (error) {
             console.log('Failed to retrieve channel data: ', JSON.stringify(error));
             throw error;
+        }
+    }
+
+    /**
+     * Retrieve channel tags and attach them to the already loaded channels.
+     * Categories are additive - any failure resolves to an empty list so the
+     * rail degrades to "Favorites / All" rather than blocking startup.
+     */
+    async retrieveChannelTags(): Promise<ChannelTag[]> {
+        try {
+            const tagResponse = await this.httpProxyServiceAdapter.call<TVHGrid<TVHChannelTagEntry>>({
+                url: this.url + TVHDataService.API_CHANNEL_TAGS,
+                user: this.user,
+                password: this.password
+            });
+            const channelResponse = await this.httpProxyServiceAdapter.call<TVHGrid<TVHChannelEntry>>({
+                url: this.url + TVHDataService.API_CHANNELS,
+                user: this.user,
+                password: this.password
+            });
+
+            const tags = applyChannelTags(this.channels, tagResponse.entries, channelResponse.entries);
+            console.log('processed %d channel tags', tags.length);
+            return tags;
+        } catch (error) {
+            console.log('Failed to retrieve channel tags: ', JSON.stringify(error));
+            return [];
         }
     }
 
