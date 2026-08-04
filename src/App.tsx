@@ -11,6 +11,7 @@ import Menu, { MenuItem } from './components/Menu';
 import FavoritesStore from './utils/FavoritesStore';
 import CategoryStore from './utils/CategoryStore';
 import CategorySetup from './components/CategorySetup';
+import RemoteKeys from './utils/RemoteKeys';
 
 export enum AppViewState {
     TV,
@@ -228,13 +229,13 @@ const App = () => {
         const keyCode = event.keyCode;
 
         switch (keyCode) {
-            case 404: // green button
-            case 71: //'g'
+            case RemoteKeys.GREEN:
+            case RemoteKeys.KEY_G:
                 event.stopPropagation();
                 setMenuState(!menuState);
                 break;
-            case 461: // back button
-            case 66: // 'b'
+            case RemoteKeys.BACK:
+            case RemoteKeys.KEY_B:
                 event.stopPropagation();
                 if (menuState) {
                     setMenuState(false);

@@ -12,6 +12,8 @@ import EPGEvent from '../models/EPGEvent';
 import Spinner from '@enact/moonstone/Spinner';
 import { Panel } from '@enact/moonstone/Panels';
 import { AppViewState } from '../App';
+import RemoteKeys from '../utils/RemoteKeys';
+import { ALL_CHANNELS } from '../models/ChannelFilter';
 
 export enum State {
     TV = 'tv',
@@ -24,12 +26,14 @@ export enum State {
 const TV = () => {
     const {
         menuState,
+        setMenuState,
         appViewState,
         appVisibilityState,
         tvhDataService,
         epgData,
         currentChannelPosition,
-        setCurrentChannelPosition
+        setCurrentChannelPosition,
+        setActiveFilter
     } = useContext(AppContext);
 
     const tvWrapper = useRef<HTMLDivElement>(null);
@@ -65,7 +69,7 @@ const TV = () => {
                 event.stopPropagation();
                 enterChannelNumberPart(keyCode - 48);
                 break;
-            case 34: // programm down
+            case RemoteKeys.CHANNEL_DOWN:
                 event.stopPropagation();
                 // channel down
                 if (currentChannelPosition === 0) {
@@ -73,11 +77,15 @@ const TV = () => {
                 }
                 changeChannelPosition(currentChannelPosition - 1);
                 break;
-            case 40: // arrow down
+            case RemoteKeys.ARROW_DOWN:
                 event.stopPropagation();
-                setState(State.CHANNEL_LIST);
+                // zap down
+                if (currentChannelPosition === 0) {
+                    return;
+                }
+                changeChannelPosition(currentChannelPosition - 1);
                 break;
-            case 33: // programm up
+            case RemoteKeys.CHANNEL_UP:
                 event.stopPropagation();
                 // channel up
                 if (currentChannelPosition === epgData.getChannelCount() - 1) {
@@ -85,28 +93,41 @@ const TV = () => {
                 }
                 changeChannelPosition(currentChannelPosition + 1);
                 break;
-            case 67: // 'c'
-            case 38: // arrow up
+            case RemoteKeys.ARROW_UP:
+                event.stopPropagation();
+                // zap up
+                if (currentChannelPosition === epgData.getChannelCount() - 1) {
+                    return;
+                }
+                changeChannelPosition(currentChannelPosition + 1);
+                break;
+            case RemoteKeys.ARROW_RIGHT:
+            case RemoteKeys.KEY_C:
                 event.stopPropagation();
                 setState(State.CHANNEL_LIST);
                 break;
-            case 406: // blue button show epg
-            case 66: // keyboard 'b'
+            case RemoteKeys.ARROW_LEFT:
+                event.stopPropagation();
+                setMenuState(true);
+                break;
+            case RemoteKeys.GUIDE:
+            case RemoteKeys.BLUE:
+            case RemoteKeys.KEY_B:
                 event.stopPropagation();
                 setState(State.EPG);
                 break;
-            case 13: {
+            case RemoteKeys.OK: {
                 // ok button ->show/disable channel info
                 event.stopPropagation();
                 handleChannelInfoSwitch();
                 break;
             }
-            case 405: // yellow button
-            case 89: //'y'
+            case RemoteKeys.YELLOW:
+            case RemoteKeys.KEY_Y:
                 event.stopPropagation();
                 handleChannelSettingsSwitch();
                 break;
-            case 403: {
+            case RemoteKeys.RED: {
                 // red button to trigger or cancel recording
                 event.stopPropagation();
                 const channel = getCurrentChannel();
@@ -114,7 +135,7 @@ const TV = () => {
                 epgEvent && toggleRecording(epgEvent);
                 break;
             }
-            case 461: // backbutton
+            case RemoteKeys.BACK:
                 event.stopPropagation();
                 setState(State.TV);
                 break;
@@ -192,12 +213,23 @@ const TV = () => {
             timeoutChangeChannel.current && clearTimeout(timeoutChangeChannel.current);
             timeoutChangeChannel.current = setTimeout(() => {
                 const channelNumber = parseInt(newChannelNumberText);
+                const target = epgData
+                    .getAllChannels()
+                    .find((channel) => channel.getChannelID() === channelNumber);
+                if (!target) {
+                    setChannelNumberText('');
+                    return;
+                }
 
-                epgData.getChannels().forEach((channel, channelPosition) => {
-                    if (channel.getChannelID() === channelNumber) {
-                        changeChannelPosition(channelPosition);
-                    }
-                });
+                let position = epgData.getChannelPositionByUuid(target.getUUID());
+                if (position < 0) {
+                    // the channel is hidden by the active filter - widen to All
+                    setActiveFilter(ALL_CHANNELS);
+                    position = epgData.getChannelPositionByUuid(target.getUUID());
+                }
+                if (position >= 0) {
+                    changeChannelPosition(position);
+                }
             }, 3000);
         } else {
             setChannelNumberText('');

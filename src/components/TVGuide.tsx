@@ -8,6 +8,7 @@ import EPGUtils from '../utils/EPGUtils';
 import CanvasUtils from '../utils/CanvasUtils';
 import EPGEvent from '../models/EPGEvent';
 import AppContext from '../AppContext';
+import RemoteKeys from '../utils/RemoteKeys';
 import '../styles/app.css';
 
 const DAYS_BACK_MILLIS = 2 * 60 * 60 * 1000; // 2 hours
@@ -701,7 +702,7 @@ const TVGuide = (props: {
 
         // do not pass this event to parents
         switch (keyCode) {
-            case 39: // right arrow
+            case RemoteKeys.ARROW_RIGHT:
                 event.stopPropagation();
                 if (eventPosition < 0) {
                     const nextEvent = epgData.getEventAfterTimestamp(channelPosition, timePosition.current);
@@ -711,7 +712,7 @@ const TVGuide = (props: {
                 eventPosition += 1;
                 scrollToEventPosition(eventPosition);
                 break;
-            case 37: // left arrow
+            case RemoteKeys.ARROW_LEFT:
                 event.stopPropagation();
                 if (eventPosition < 0) {
                     const prevEvent = epgData.getEventBeforeTimestamp(channelPosition, timePosition.current);
@@ -721,26 +722,39 @@ const TVGuide = (props: {
                 eventPosition -= 1;
                 scrollToEventPosition(eventPosition);
                 break;
-            case 40: // arrow down
+            case RemoteKeys.ARROW_DOWN:
                 event.stopPropagation();
                 scrollDown();
                 return;
-            case 38: // arrow up
+            case RemoteKeys.ARROW_UP:
                 event.stopPropagation();
                 scrollUp();
                 return;
-            case 403:
+            case RemoteKeys.CHANNEL_UP:
+                event.stopPropagation();
+                if (currentChannelPosition < epgData.getChannelCount() - 1) {
+                    setCurrentChannelPosition(currentChannelPosition + 1);
+                }
+                break;
+            case RemoteKeys.CHANNEL_DOWN:
+                event.stopPropagation();
+                if (currentChannelPosition > 0) {
+                    setCurrentChannelPosition(currentChannelPosition - 1);
+                }
+                break;
+            case RemoteKeys.RED:
                 event.stopPropagation();
                 if (eventPosition < 0) break;
                 toggleRecording(channelPosition, eventPosition);
                 break;
-            case 461:
-            case 406: // blue or back button hide epg/show tv
-            case 66: // keyboard 'b'
+            case RemoteKeys.BACK:
+            case RemoteKeys.GUIDE:
+            case RemoteKeys.BLUE:
+            case RemoteKeys.KEY_B:
                 event.stopPropagation();
                 props.unmount();
                 break;
-            case 13: // ok button -> switch to focused channel
+            case RemoteKeys.OK: // ok button -> switch to focused channel
                 event.stopPropagation();
                 props.unmount();
                 setCurrentChannelPosition(channelPosition);

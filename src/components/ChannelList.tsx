@@ -454,18 +454,30 @@ const ChannelList = (props: {
         }
 
         switch (keyCode) {
-            case 33: // programm up
-            case 38: // arrow up
+            case RemoteKeys.ARROW_UP:
                 event.stopPropagation();
                 scrollUp();
                 break;
-            case 34: // programm down
-            case 40: // arrow down
+            case RemoteKeys.ARROW_DOWN:
                 event.stopPropagation();
                 scrollDown();
                 break;
-            case 67: // keyboard 'c'
-            case 461: // back button
+            case RemoteKeys.CHANNEL_UP:
+                event.stopPropagation();
+                if (currentChannelPosition < epgData.getChannelCount() - 1) {
+                    setCurrentChannelPosition(currentChannelPosition + 1);
+                    setChannelPosition(currentChannelPosition + 1);
+                }
+                break;
+            case RemoteKeys.CHANNEL_DOWN:
+                event.stopPropagation();
+                if (currentChannelPosition > 0) {
+                    setCurrentChannelPosition(currentChannelPosition - 1);
+                    setChannelPosition(currentChannelPosition - 1);
+                }
+                break;
+            case RemoteKeys.KEY_C:
+            case RemoteKeys.BACK:
                 event.stopPropagation();
                 props.unmount();
                 break;
@@ -473,14 +485,14 @@ const ChannelList = (props: {
                 event.stopPropagation();
                 handleOkDown();
                 break;
-            case 82: // keyboard 'r'
-            case 403: {
+            case RemoteKeys.KEY_R:
+            case RemoteKeys.RED: {
                 // red button trigger recording
                 event.stopPropagation();
                 toggleRecording();
                 break;
             }
-            case 39: // right arrow
+            case RemoteKeys.ARROW_RIGHT:
                 event.stopPropagation();
                 if (state === State.DETAILS) {
                     // switch to next event details
@@ -491,7 +503,7 @@ const ChannelList = (props: {
                     setState(State.DETAILS);
                 }
                 break;
-            case 37: // left arrow
+            case RemoteKeys.ARROW_LEFT:
                 event.stopPropagation();
                 if (state === State.DETAILS && focusedEventOffset.current > 0) {
                     // switch to previous event details
@@ -501,6 +513,9 @@ const ChannelList = (props: {
                     // hide channelListDetails
                     setState(State.NORMAL);
                 }
+                break;
+            case RemoteKeys.GUIDE:
+                // let it bubble to TV so it can switch to the EPG
                 break;
             default:
                 console.log('ChannelList-keyPressed:', keyCode);
