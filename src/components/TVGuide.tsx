@@ -1,13 +1,15 @@
 /**
  * Created by satadru on 3/31/17.
  */
-import React, { useContext, useEffect, useRef } from 'react';
+import React, { useContext, useEffect, useRef, useState } from 'react';
 
 import Rect from '../models/Rect';
 import EPGUtils from '../utils/EPGUtils';
 import CanvasUtils from '../utils/CanvasUtils';
 import EPGEvent from '../models/EPGEvent';
 import AppContext from '../AppContext';
+import RemoteKeys from '../utils/RemoteKeys';
+import DialogPopup from './DialogPopup';
 import '../styles/app.css';
 
 const DAYS_BACK_MILLIS = 2 * 60 * 60 * 1000; // 2 hours
@@ -39,6 +41,8 @@ const TVGuide = (props: {
     const timeUpperBoundary = useRef(0);
     const scrollX = useRef(0);
     const scrollY = useRef(0);
+
+    const [recordDialogEvent, setRecordDialogEvent] = useState<EPGEvent | undefined>(undefined);
 
     const mDrawingRect = new Rect();
     const mMeasuringRect = new Rect();
@@ -699,9 +703,50 @@ const TVGuide = (props: {
         let eventPosition = focusedEventPosition.current;
         const channelPosition = focusedChannelPosition.current;
 
+        if (recordDialogEvent) {
+            // the record dialog owns the screen while it is open - keep the
+            // grid's own key handling (arrow keys moving the focused event
+            // underneath it, OK re-opening/closing the dialog) from running.
+            // CH+/CH- must still zap from every screen (a hard constraint),
+            // so - exactly like the RAIL and DETAILS states elsewhere in
+            // this app - those fall through to the normal handler below
+            // instead of being swallowed here. Everything else is stopped
+            // rather than bubbling to TV.tsx, which has no way to know a
+            // dialog is showing: TV.tsx's own ARROW_UP/DOWN/LEFT/RIGHT
+            // handling has no state check either (it relies entirely on the
+            // active child view stopping propagation, same as this file
+            // does normally), so letting arrow keys bubble past here -
+            // which not stopping them would also do, since React ties
+            // "reaches Enact's window-level Spotlight listener" and
+            // "reaches TV.tsx's onKeyDown" to the same stopPropagation call
+            // - would zap the channel or open the channel list/menu behind
+            // the dialog instead of moving spotlight focus within it. See
+            // DialogPopup's focusAbortByDefault (used below) for how the
+            // dialog is still safely dismissable without arrow-key
+            // navigation. OK is left entirely to the dialog's focused
+            // button - Enact's Spottable wires select-on-keyup directly onto
+            // the button element itself, so it still fires regardless of
+            // this stopPropagation on an ancestor. BACK closes the dialog
+            // without acting.
+            switch (keyCode) {
+                case RemoteKeys.CHANNEL_UP:
+                case RemoteKeys.CHANNEL_DOWN:
+                    // fall through to the normal handler so zapping always works
+                    break;
+                case RemoteKeys.BACK:
+                    event.stopPropagation();
+                    setRecordDialogEvent(undefined);
+                    focus();
+                    return;
+                default:
+                    event.stopPropagation();
+                    return;
+            }
+        }
+
         // do not pass this event to parents
         switch (keyCode) {
-            case 39: // right arrow
+            case RemoteKeys.ARROW_RIGHT:
                 event.stopPropagation();
                 if (eventPosition < 0) {
                     const nextEvent = epgData.getEventAfterTimestamp(channelPosition, timePosition.current);
@@ -711,7 +756,7 @@ const TVGuide = (props: {
                 eventPosition += 1;
                 scrollToEventPosition(eventPosition);
                 break;
-            case 37: // left arrow
+            case RemoteKeys.ARROW_LEFT:
                 event.stopPropagation();
                 if (eventPosition < 0) {
                     const prevEvent = epgData.getEventBeforeTimestamp(channelPosition, timePosition.current);
@@ -721,30 +766,51 @@ const TVGuide = (props: {
                 eventPosition -= 1;
                 scrollToEventPosition(eventPosition);
                 break;
-            case 40: // arrow down
+            case RemoteKeys.ARROW_DOWN:
                 event.stopPropagation();
                 scrollDown();
                 return;
-            case 38: // arrow up
+            case RemoteKeys.ARROW_UP:
                 event.stopPropagation();
                 scrollUp();
                 return;
-            case 403:
+            case RemoteKeys.CHANNEL_UP:
+                event.stopPropagation();
+                if (currentChannelPosition < epgData.getChannelCount() - 1) {
+                    setCurrentChannelPosition(currentChannelPosition + 1);
+                }
+                break;
+            case RemoteKeys.CHANNEL_DOWN:
+                event.stopPropagation();
+                if (currentChannelPosition > 0) {
+                    setCurrentChannelPosition(currentChannelPosition - 1);
+                }
+                break;
+            case RemoteKeys.RED:
                 event.stopPropagation();
                 if (eventPosition < 0) break;
                 toggleRecording(channelPosition, eventPosition);
                 break;
-            case 461:
-            case 406: // blue or back button hide epg/show tv
-            case 66: // keyboard 'b'
+            case RemoteKeys.BACK:
+            case RemoteKeys.GUIDE:
+            case RemoteKeys.BLUE:
+            case RemoteKeys.KEY_B:
                 event.stopPropagation();
                 props.unmount();
                 break;
-            case 13: // ok button -> switch to focused channel
+            case RemoteKeys.OK: {
+                // ok button -> switch to focused channel, unless it is a
+                // future programme - then open the record dialog instead
                 event.stopPropagation();
+                const focusedEvent = epgData.getEvent(channelPosition, eventPosition);
+                if (focusedEvent && !focusedEvent.isCurrent() && !focusedEvent.isPastDated(EPGUtils.getNow())) {
+                    setRecordDialogEvent(focusedEvent);
+                    return;
+                }
                 props.unmount();
                 setCurrentChannelPosition(channelPosition);
                 break;
+            }
             default:
                 console.log('EPG-keyPressed:', keyCode);
         }
@@ -927,6 +993,35 @@ const TVGuide = (props: {
             <div className="programguide-contents" ref={programguideContents}>
                 <canvas ref={canvas} width={getWidth()} height={getHeight()} style={{ display: 'block' }} />
             </div>
+
+            {recordDialogEvent && (
+                <DialogPopup
+                    title={recordDialogEvent.getTitle()}
+                    subtitle={
+                        epgData.isRecording(recordDialogEvent)
+                            ? 'Cancel the planned recording?'
+                            : 'Record this programme?'
+                    }
+                    confirmText={epgData.isRecording(recordDialogEvent) ? 'Cancel recording' : 'Record'}
+                    abortText="Close"
+                    // arrow keys are swallowed while this dialog is open (see
+                    // the recordDialogEvent guard above), so the user cannot
+                    // 5-way-navigate from Record to Close - default spotlight
+                    // focus to Close instead of Enact's own default (the
+                    // first-rendered, confirm button) so a reflexive OK press
+                    // dismisses rather than starts/cancels a recording
+                    focusAbortByDefault
+                    confirmAction={() => {
+                        props.toggleRecording(recordDialogEvent, () => updateCanvas());
+                        setRecordDialogEvent(undefined);
+                        focus();
+                    }}
+                    abortAcion={() => {
+                        setRecordDialogEvent(undefined);
+                        focus();
+                    }}
+                ></DialogPopup>
+            )}
         </div>
     );
 };

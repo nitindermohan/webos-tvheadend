@@ -12,6 +12,10 @@ import EPGEvent from '../models/EPGEvent';
 import Spinner from '@enact/moonstone/Spinner';
 import { Panel } from '@enact/moonstone/Panels';
 import { AppViewState } from '../App';
+import RemoteKeys from '../utils/RemoteKeys';
+import { ALL_CHANNELS } from '../models/ChannelFilter';
+import HoldGesture from '../utils/HoldGesture';
+import { shouldSwitchStream } from '../utils/StreamIdentity';
 
 export enum State {
     TV = 'tv',
@@ -24,12 +28,14 @@ export enum State {
 const TV = () => {
     const {
         menuState,
+        setMenuState,
         appViewState,
         appVisibilityState,
         tvhDataService,
         epgData,
         currentChannelPosition,
-        setCurrentChannelPosition
+        setCurrentChannelPosition,
+        setActiveFilter
     } = useContext(AppContext);
 
     const tvWrapper = useRef<HTMLDivElement>(null);
@@ -37,6 +43,23 @@ const TV = () => {
     const timeoutChangeChannel = useRef<NodeJS.Timeout | null>(null);
     const audioTracksRef = useRef<AudioTrackList>();
     const textTracksRef = useRef<TextTrackList>();
+    // the uuid of the channel actually playing, so the effect below can tell
+    // a genuine zap apart from currentChannelPosition merely being
+    // reconciled to a new index for the same channel (AppContext's
+    // setActiveFilter and bumpFavoritesVersion both do this) - see
+    // shouldSwitchStream for why an index comparison cannot do this job
+    const playingUuid = useRef('');
+
+    // hold-to-open-audio-settings state for the OK button on live TV, mirroring
+    // ChannelList's hold-to-favorite gesture (Task 11) - see HoldGesture.ts for
+    // why this is a separate, independently tested state machine rather than
+    // inline refs, and ChannelList.tsx for why the callback goes through a
+    // trampoline ref (onOkHoldRef) updated every render: the HoldGesture
+    // instance is created once and must always invoke the *current* render's
+    // handleChannelSettingsSwitch (which closes over `state`), not the one
+    // captured when the instance was constructed.
+    const onOkHoldRef = useRef<() => void>(() => undefined);
+    const okHoldGesture = useRef(new HoldGesture(600, () => onOkHoldRef.current()));
 
     const [isVideoPlaying, setIsVideoPlaying] = useState(false);
     const [state, setState] = useState<State>(State.CHANNEL_INFO);
@@ -65,7 +88,7 @@ const TV = () => {
                 event.stopPropagation();
                 enterChannelNumberPart(keyCode - 48);
                 break;
-            case 34: // programm down
+            case RemoteKeys.CHANNEL_DOWN:
                 event.stopPropagation();
                 // channel down
                 if (currentChannelPosition === 0) {
@@ -73,11 +96,15 @@ const TV = () => {
                 }
                 changeChannelPosition(currentChannelPosition - 1);
                 break;
-            case 40: // arrow down
+            case RemoteKeys.ARROW_DOWN:
                 event.stopPropagation();
-                setState(State.CHANNEL_LIST);
+                // zap down
+                if (currentChannelPosition === 0) {
+                    return;
+                }
+                changeChannelPosition(currentChannelPosition - 1);
                 break;
-            case 33: // programm up
+            case RemoteKeys.CHANNEL_UP:
                 event.stopPropagation();
                 // channel up
                 if (currentChannelPosition === epgData.getChannelCount() - 1) {
@@ -85,28 +112,42 @@ const TV = () => {
                 }
                 changeChannelPosition(currentChannelPosition + 1);
                 break;
-            case 67: // 'c'
-            case 38: // arrow up
+            case RemoteKeys.ARROW_UP:
+                event.stopPropagation();
+                // zap up
+                if (currentChannelPosition === epgData.getChannelCount() - 1) {
+                    return;
+                }
+                changeChannelPosition(currentChannelPosition + 1);
+                break;
+            case RemoteKeys.ARROW_RIGHT:
+            case RemoteKeys.KEY_C:
                 event.stopPropagation();
                 setState(State.CHANNEL_LIST);
                 break;
-            case 406: // blue button show epg
-            case 66: // keyboard 'b'
+            case RemoteKeys.ARROW_LEFT:
+                event.stopPropagation();
+                setMenuState(true);
+                break;
+            case RemoteKeys.GUIDE:
+            case RemoteKeys.BLUE:
+            case RemoteKeys.KEY_B:
                 event.stopPropagation();
                 setState(State.EPG);
                 break;
-            case 13: {
-                // ok button ->show/disable channel info
+            case RemoteKeys.OK:
+                // ok button -> a short press shows/hides channel info; holding
+                // it opens audio/subtitle settings - see handleKeyUp, which
+                // decides which one happened once the key is released
                 event.stopPropagation();
-                handleChannelInfoSwitch();
+                okHoldGesture.current.down();
                 break;
-            }
-            case 405: // yellow button
-            case 89: //'y'
+            case RemoteKeys.YELLOW:
+            case RemoteKeys.KEY_Y:
                 event.stopPropagation();
                 handleChannelSettingsSwitch();
                 break;
-            case 403: {
+            case RemoteKeys.RED: {
                 // red button to trigger or cancel recording
                 event.stopPropagation();
                 const channel = getCurrentChannel();
@@ -114,7 +155,7 @@ const TV = () => {
                 epgEvent && toggleRecording(epgEvent);
                 break;
             }
-            case 461: // backbutton
+            case RemoteKeys.BACK:
                 event.stopPropagation();
                 setState(State.TV);
                 break;
@@ -137,6 +178,23 @@ const TV = () => {
         }
 
         state !== State.CHANNEL_SETTINGS ? setState(State.CHANNEL_SETTINGS) : setState(State.TV);
+    };
+    // keep the trampoline pointed at the latest closure every render, so the
+    // long-lived HoldGesture instance never invokes a stale handleChannelSettingsSwitch
+    onOkHoldRef.current = handleChannelSettingsSwitch;
+
+    const handleKeyUp = (event: React.KeyboardEvent<HTMLDivElement>) => {
+        if (event.keyCode !== RemoteKeys.OK) return;
+        event.stopPropagation();
+        // up() itself distinguishes "hold already fired" from "this press's
+        // key-down was consumed elsewhere before it ever reached down()" -
+        // e.g. the EPG stops propagation on OK key-down before it ever
+        // reaches here (see TVGuide.tsx), so its release must not be
+        // mistaken for a short press on live TV. Either way it reports no
+        // select; only a genuine short press on live TV reports true.
+        if (okHoldGesture.current.up()) {
+            handleChannelInfoSwitch();
+        }
     };
 
     const handleScrollWheel = () => {
@@ -192,12 +250,23 @@ const TV = () => {
             timeoutChangeChannel.current && clearTimeout(timeoutChangeChannel.current);
             timeoutChangeChannel.current = setTimeout(() => {
                 const channelNumber = parseInt(newChannelNumberText);
+                const target = epgData
+                    .getAllChannels()
+                    .find((channel) => channel.getChannelID() === channelNumber);
+                if (!target) {
+                    setChannelNumberText('');
+                    return;
+                }
 
-                epgData.getChannels().forEach((channel, channelPosition) => {
-                    if (channel.getChannelID() === channelNumber) {
-                        changeChannelPosition(channelPosition);
-                    }
-                });
+                let position = epgData.getChannelPositionByUuid(target.getUUID());
+                if (position < 0) {
+                    // the channel is hidden by the active filter - widen to All
+                    setActiveFilter(ALL_CHANNELS);
+                    position = epgData.getChannelPositionByUuid(target.getUUID());
+                }
+                if (position >= 0) {
+                    changeChannelPosition(position);
+                }
             }, 3000);
         } else {
             setChannelNumberText('');
@@ -300,8 +369,24 @@ const TV = () => {
     };
 
     const updateStreamSource = (streamUrl: URL) => {
-        // show the channel info, if the channel was changed
-        setState(State.CHANNEL_INFO);
+        // show the channel info, if the channel was changed - but don't let a
+        // zap steal the screen away from an overlay that owns it: CH+/CH-
+        // must zap from every screen, and ChannelList's RAIL/DETAILS states
+        // and TVGuide's record-dialog guard deliberately fall through to
+        // their normal zap handling rather than closing first, so a zap must
+        // not force them shut either. showCurrentChannelNumber() below still
+        // gives feedback via the channel-number header over whichever of
+        // these is open.
+        //
+        // CHANNEL_SETTINGS is deliberately *not* preserved here: it has no
+        // CH+/CH- handling of its own, so a zap still reaches it and still
+        // works either way, but its audio/subtitle track list is built once
+        // for the channel that was playing when it opened
+        // (ChannelSettings.tsx's mount effect) and does not refresh on a
+        // zap - keeping the panel open across a channel change would leave
+        // it silently showing (and letting the user "select") the previous
+        // channel's tracks against the new channel.
+        setState((prev) => (prev === State.CHANNEL_LIST || prev === State.EPG ? prev : State.CHANNEL_INFO));
 
         changeSource(streamUrl);
 
@@ -313,6 +398,8 @@ const TV = () => {
         focus();
 
         return () => {
+            // cancel a pending hold so it cannot fire after unmount
+            okHoldGesture.current.cancel();
             const videoElement = getMediaElement();
             if (!videoElement) return;
             resetPlayer(videoElement);
@@ -320,15 +407,17 @@ const TV = () => {
     }, []);
 
     useEffect(() => {
-        // change channel in case we have channels retrieved and channel position changed
-        if (epgData.getChannelCount() > 0) {
-            const currentChannel = getCurrentChannel();
-            if (currentChannel && currentChannel.getChannelID() !== currentChannelPosition) {
-                updateStreamSource(currentChannel.getStreamUrl());
-                // store last used channel
-                StorageHelper.setLastChannelIndex(currentChannelPosition);
-            }
-        }
+        // switch the stream only when the channel actually playing changed -
+        // not merely whenever currentChannelPosition changes, since that also
+        // moves when a filter reconciles the still-playing channel to a new
+        // index (filtering must never interrupt playback)
+        if (epgData.getChannelCount() === 0) return;
+        const currentChannel = getCurrentChannel();
+        if (!currentChannel || !shouldSwitchStream(currentChannel, playingUuid.current)) return;
+        playingUuid.current = currentChannel.getUUID();
+        updateStreamSource(currentChannel.getStreamUrl());
+        // store last used channel
+        StorageHelper.setLastChannelUuid(currentChannel.getUUID());
     }, [currentChannelPosition]);
 
     useEffect(() => {
@@ -388,6 +477,7 @@ const TV = () => {
             ref={tvWrapper}
             tabIndex={-1}
             onKeyDown={handleKeyPress}
+            onKeyUp={handleKeyUp}
             onWheel={handleScrollWheel}
             onClick={handleClick}
             className={isVideoPlaying ? 'tv playing' : 'tv loading'}

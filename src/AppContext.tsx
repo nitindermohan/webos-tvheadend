@@ -1,8 +1,11 @@
-import React, { createContext, useState } from 'react';
+import React, { createContext, useRef, useState } from 'react';
 import { AppViewState } from './App';
 import EPGData from './models/EPGData';
 import TVHDataService from './services/TVHDataService';
-import StorageHelper from './utils/StorageHelper';
+import ChannelTag from './models/ChannelTag';
+import ChannelFilter from './models/ChannelFilter';
+import CategoryStore from './utils/CategoryStore';
+import FavoritesStore from './utils/FavoritesStore';
 
 export enum AppVisibilityState {
     FOCUSED = 'focused',
@@ -32,6 +35,12 @@ type AppContext = {
     setPersistentAuthToken: (value: string) => void;
     isAnimationsEnabled: boolean;
     setAnimationsEnabled: (value: boolean) => void;
+    channelTags: ChannelTag[];
+    setChannelTags: (value: ChannelTag[]) => void;
+    activeFilter: ChannelFilter;
+    setActiveFilter: (value: ChannelFilter) => void;
+    favoritesVersion: number;
+    bumpFavoritesVersion: () => void;
 };
 
 const AppContext = createContext({} as AppContext);
@@ -43,11 +52,26 @@ export const AppContextProvider = ({ children }: { children: JSX.Element }) => {
     const [tvhDataService, setTvhDataService] = useState<TVHDataService>();
     const [epgData] = useState(new EPGData());
     const [imageCache] = useState(new Map<URL, HTMLImageElement>());
-    const [currentChannelPosition, setCurrentChannelPosition] = useState(StorageHelper.getLastChannelIndex());
+    const [currentChannelPosition, setCurrentChannelPositionState] = useState(0);
+    // Callers of setActiveFilter can be several renders removed from the one
+    // that produced their closure (App.tsx's reloadData is captured once by a
+    // useEffect with an empty-ish dependency array and keeps running
+    // asynchronously afterwards). Reading currentChannelPosition as a plain
+    // closed-over value would then read a value frozen at that earlier render.
+    // A ref updated synchronously at every write stays current regardless of
+    // which render's closure performs the write.
+    const currentChannelPositionRef = useRef(currentChannelPosition);
+    const setCurrentChannelPosition = (value: number) => {
+        currentChannelPositionRef.current = value;
+        setCurrentChannelPositionState(value);
+    };
     const [currentRecordingPosition, setCurrentRecordingPosition] = useState(-1);
     const [appVisibilityState, setAppVisibilityState] = useState(AppVisibilityState.FOCUSED);
     const [persistentAuthToken, setPersistentAuthToken] = useState<string>();
     const [isAnimationsEnabled, setAnimationsEnabled] = useState<boolean>(true);
+    const [channelTags, setChannelTags] = useState<ChannelTag[]>([]);
+    const [activeFilter, setActiveFilterState] = useState<ChannelFilter>(CategoryStore.getActiveFilter());
+    const [favoritesVersion, setFavoritesVersion] = useState(0);
 
     const appContext: AppContext = {
         menuState: menuState,
@@ -69,7 +93,66 @@ export const AppContextProvider = ({ children }: { children: JSX.Element }) => {
         persistentAuthToken: persistentAuthToken,
         setPersistentAuthToken: (value: string) => setPersistentAuthToken(value),
         isAnimationsEnabled: isAnimationsEnabled,
-        setAnimationsEnabled: (value: boolean) => setAnimationsEnabled(value)
+        setAnimationsEnabled: (value: boolean) => setAnimationsEnabled(value),
+        channelTags: channelTags,
+        setChannelTags: (value: ChannelTag[]) => setChannelTags(value),
+        activeFilter: activeFilter,
+        setActiveFilter: (value: ChannelFilter) => {
+            // pin the playing channel before the filter changes so its index
+            // stays valid in the new filtered view - filtering must never
+            // interrupt playback
+            const playingChannel = epgData.getChannel(currentChannelPositionRef.current);
+            if (playingChannel) {
+                epgData.setPinnedChannelUuid(playingChannel.getUUID());
+            }
+
+            CategoryStore.setActiveFilter(value);
+            epgData.setFilter(value);
+            setActiveFilterState(value);
+
+            // the pin guarantees the channel is present, but guard -1 defensively -
+            // resetting to 0 would change what is playing
+            if (playingChannel) {
+                const position = epgData.getChannelPositionByUuid(playingChannel.getUUID());
+                if (position >= 0) {
+                    setCurrentChannelPosition(position);
+                }
+            }
+        },
+        favoritesVersion: favoritesVersion,
+        bumpFavoritesVersion: () => {
+            // mirror setActiveFilter's reconcile just above in full: pin the
+            // playing channel *and* reconcile, not just the reconcile.
+            // setFavoriteUuids re-runs applyFilter and can shrink the
+            // filtered view - most pointedly when the channel un-favorited is
+            // the one currently playing, which drops it out of its own
+            // filtered view entirely unless it is pinned first. Capture who
+            // is playing before the filter re-applies, then re-resolve their
+            // position afterwards - using the ref, not the closed-over state
+            // value, for the same stale-closure reason setActiveFilter does
+            // (Task 8a)
+            const playingChannel = epgData.getChannel(currentChannelPositionRef.current);
+            if (playingChannel) {
+                epgData.setPinnedChannelUuid(playingChannel.getUUID());
+            }
+
+            epgData.setFavoriteUuids(FavoritesStore.all());
+
+            // guard -1 defensively - resetting to 0 would change what is playing
+            if (playingChannel) {
+                const position = epgData.getChannelPositionByUuid(playingChannel.getUUID());
+                if (position >= 0) {
+                    setCurrentChannelPosition(position);
+                }
+            }
+
+            // bump last: the hold-to-favorite gesture reaches this from a
+            // setTimeout, which React 16 does not batch, so committing the
+            // version before the reconcile above would leave a render where
+            // epgData is already re-filtered but currentChannelPosition is
+            // still stale
+            setFavoritesVersion((version) => version + 1);
+        }
     };
 
     return <AppContext.Provider value={appContext}>{children}</AppContext.Provider>;

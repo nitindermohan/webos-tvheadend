@@ -7,13 +7,20 @@ import ChannelListDetails from './ChannelListDetails';
 import EPGEvent from '../models/EPGEvent';
 import EPGChannel from '../models/EPGChannel';
 import EPGUtils from '../utils/EPGUtils';
+import FilterRail, { buildRailFilters, RailEntry } from './FilterRail';
+import CategoryStore from '../utils/CategoryStore';
+import RemoteKeys from '../utils/RemoteKeys';
+import { isSameFilter } from '../models/ChannelFilter';
+import FavoritesStore from '../utils/FavoritesStore';
+import HoldGesture from '../utils/HoldGesture';
 
 const VERTICAL_SCROLL_TOP_PADDING_ITEM = 5;
 const IS_DEBUG = false;
 
 enum State {
     NORMAL = 'normal',
-    DETAILS = 'details'
+    DETAILS = 'details',
+    RAIL = 'rail'
 }
 
 interface DetailsState {
@@ -25,9 +32,18 @@ const ChannelList = (props: {
     toggleRecording: (event: EPGEvent, callback: () => unknown) => void;
     unmount: () => void;
 }) => {
-    const { epgData, imageCache, currentChannelPosition, setCurrentChannelPosition, isAnimationsEnabled } = useContext(
-        AppContext
-    );
+    const {
+        epgData,
+        imageCache,
+        currentChannelPosition,
+        setCurrentChannelPosition,
+        isAnimationsEnabled,
+        channelTags,
+        activeFilter,
+        setActiveFilter,
+        favoritesVersion,
+        bumpFavoritesVersion
+    } = useContext(AppContext);
     const canvas = useRef<HTMLCanvasElement>(null);
     const listWrapper = useRef<HTMLDivElement>(null);
     const scrollAnimationId = useRef(0);
@@ -37,6 +53,16 @@ const ChannelList = (props: {
     const focusedEventOffset = useRef(0);
     const nextEvents = useRef<EPGEvent[]>([]);
     const nextSameEvents = useRef<EPGEvent[]>([]);
+
+    // hold-to-favorite state for the OK button. The gesture instance is
+    // created once and is stable for the component's lifetime; onToggleFavoriteRef
+    // is a trampoline updated every render so the gesture always invokes the
+    // *current* render's toggleFavorite closure (which itself closes over
+    // channelPosition and epgData) without HoldGesture needing to be
+    // recreated - see HoldGesture.ts for why this state machine is a
+    // separate, independently tested class rather than inline refs.
+    const onToggleFavoriteRef = useRef<() => void>(() => undefined);
+    const holdGesture = useRef(new HoldGesture(600, () => onToggleFavoriteRef.current()));
 
     const mChannelLayoutTextSize = 32;
     const mChannelLayoutEventTextSize = 26;
@@ -48,12 +74,26 @@ const ChannelList = (props: {
     const mChannelLayoutHeight = 90;
     const mChannelLayoutWidth = 900;
     const mChannelLayoutBackgroundFocus = 'rgba(29,170,226,1)';
+    const mFilterRailHeight = 86;
+    // x-offset of the name column (channel name, recording mark, event
+    // progress bar + text) from the row's left edge. Was a bare 90 in three
+    // places (plus the two derived width calculations below) until the
+    // favorite star needed room to its left - see the favorite marker
+    // comment in drawChannelItem for why this moved from 90 to 114.
+    const mChannelLayoutNameLeft = 114;
 
     const [state, setState] = useState<State>(State.NORMAL);
     const [detailsState, setDetailsState] = useState<DetailsState>();
 
+    const railEntries: RailEntry[] = buildRailFilters(channelTags, CategoryStore.getSelectedTagUuids());
+    const [railFocusedIndex, setRailFocusedIndex] = useState(() => {
+        const index = railEntries.findIndex((entry) => isSameFilter(entry.filter, activeFilter));
+        return index >= 0 ? index : 1;
+    });
+    const [detailsActionIndex, setDetailsActionIndex] = useState(0);
+
     const getTopFrom = (position: number) => {
-        const y = position * mChannelLayoutHeight; //+ this.mChannelLayoutMargin;
+        const y = position * mChannelLayoutHeight + mFilterRailHeight;
         return y - scrollY.current;
     };
 
@@ -192,7 +232,7 @@ const ChannelList = (props: {
         // channel line
         const currentEvent = epgData.getEventAtTimestamp(position, EPGUtils.getNow());
         const channelIconWidth = mChannelLayoutHeight * 1.3;
-        const channelNameWidth = mChannelLayoutWidth - channelIconWidth - 90;
+        const channelNameWidth = mChannelLayoutWidth - channelIconWidth - mChannelLayoutNameLeft;
 
         const leftBeforeRecMark = drawingRect.left;
         // recording mark
@@ -200,7 +240,7 @@ const ChannelList = (props: {
             const radius = 10;
             canvas.fillStyle = '#FF0000';
             canvas.beginPath();
-            canvas.arc(drawingRect.left + 90 + radius, drawingRect.middle - radius, radius, 0, 2 * Math.PI);
+            canvas.arc(drawingRect.left + mChannelLayoutNameLeft + radius, drawingRect.middle - radius, radius, 0, 2 * Math.PI);
             canvas.fill();
             drawingRect.left += 2 * radius + mChannelLayoutPadding;
         }
@@ -208,7 +248,7 @@ const ChannelList = (props: {
         CanvasUtils.writeText(
             canvas,
             channel.getName(),
-            drawingRect.left + 90,
+            drawingRect.left + mChannelLayoutNameLeft,
             drawingRect.top + mChannelLayoutHeight * 0.33,
             {
                 fontSize: mChannelLayoutTextSize,
@@ -223,7 +263,10 @@ const ChannelList = (props: {
         if (currentEvent) {
             // channel event progress bar
             const channelEventProgressRect = new Rect();
-            channelEventProgressRect.left = drawingRect.left + 90;
+            // shares the name column's left edge (mChannelLayoutNameLeft) so
+            // the progress bar/event-text row stays aligned under the
+            // channel name above it rather than the two rows drifting apart
+            channelEventProgressRect.left = drawingRect.left + mChannelLayoutNameLeft;
             channelEventProgressRect.right = channelEventProgressRect.left + 80;
             channelEventProgressRect.top = drawingRect.top + mChannelLayoutHeight * 0.66;
             channelEventProgressRect.bottom = channelEventProgressRect.top + mChannelLayoutEventTextSize * 0.5;
@@ -243,7 +286,8 @@ const ChannelList = (props: {
             );
 
             // channel event text
-            const channelEventWidth = mChannelLayoutWidth - channelIconWidth - 90 - channelEventProgressRect.width;
+            const channelEventWidth =
+                mChannelLayoutWidth - channelIconWidth - mChannelLayoutNameLeft - channelEventProgressRect.width;
             CanvasUtils.writeText(
                 canvas,
                 currentEvent.getTitle(),
@@ -270,6 +314,31 @@ const ChannelList = (props: {
                 channelImageRect.height
             );
             IS_DEBUG && CanvasUtils.drawDebugRect(canvas, channelImageRect);
+        }
+
+        // favorite marker - placed in the gap between the right-aligned channel
+        // number (right edge pinned at left+70, fontSize 38) and the name
+        // column (now left+mChannelLayoutNameLeft=114, fontSize 32). A 32px
+        // '★' glyph is roughly 1em (~32px) wide, so centering it in the
+        // original 70-90 gap (at left+80, spanning ~64-96) still overlapped
+        // both the number and the name column by a few px on each side - the
+        // gap was only 20px wide, too narrow for a 32px glyph regardless of
+        // where within it the glyph was centered. The name column (and the
+        // recording mark and both width calculations that must stay in step
+        // with it) moved right by 24px instead of shrinking the star, opening
+        // a 70-114 gap; the star now centers at left+92, spanning ~76-108 -
+        // clear of the number (70) by ~6px and the name column (114) by ~6px.
+        // The channel logo remains on the row's *right* edge (see
+        // getDrawingRectForChannelImage: right = width - margin, left = right
+        // - height * 1.3, i.e. x 780-897 of the 900-wide row) and is
+        // unaffected by any of this.
+        if (FavoritesStore.has(channel.getUUID())) {
+            CanvasUtils.writeText(canvas, '★', drawingRect.left + 92, drawingRect.middle, {
+                fontSize: mChannelLayoutTextSize,
+                textAlign: 'center',
+                fillStyle: '#ffcc4d',
+                isBold: true
+            });
         }
     };
 
@@ -317,7 +386,9 @@ const ChannelList = (props: {
 
     const getLastVisibleChannelPosition = () => {
         const y = scrollY.current;
-        const screenHeight = getHeight();
+        // rows start mFilterRailHeight lower than the canvas top, so that much
+        // less vertical space is actually available for them to render into
+        const screenHeight = getHeight() - mFilterRailHeight;
         let position = Math.floor((y + screenHeight) / mChannelLayoutHeight);
 
         const channelCount = epgData.getChannelCount();
@@ -355,35 +426,97 @@ const ChannelList = (props: {
     const handleKeyPress = (event: React.KeyboardEvent<HTMLDivElement>) => {
         const keyCode = event.keyCode;
 
+        if (state === State.RAIL) {
+            switch (keyCode) {
+                case RemoteKeys.ARROW_LEFT:
+                    event.stopPropagation();
+                    setRailFocusedIndex(railFocusedIndex > 0 ? railFocusedIndex - 1 : railEntries.length - 1);
+                    return;
+                case RemoteKeys.ARROW_RIGHT:
+                    event.stopPropagation();
+                    setRailFocusedIndex(railFocusedIndex < railEntries.length - 1 ? railFocusedIndex + 1 : 0);
+                    return;
+                case RemoteKeys.ARROW_DOWN:
+                case RemoteKeys.OK:
+                    event.stopPropagation();
+                    applyFocusedFilter();
+                    return;
+                case RemoteKeys.BACK:
+                    event.stopPropagation();
+                    setState(State.NORMAL);
+                    return;
+                case RemoteKeys.CHANNEL_UP:
+                case RemoteKeys.CHANNEL_DOWN:
+                    // fall through to the normal handler so zapping always works
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        if (state === State.DETAILS) {
+            switch (keyCode) {
+                case RemoteKeys.ARROW_UP:
+                    event.stopPropagation();
+                    setDetailsActionIndex(detailsActionIndex === 0 ? 1 : 0);
+                    return;
+                case RemoteKeys.ARROW_DOWN:
+                    event.stopPropagation();
+                    setDetailsActionIndex(detailsActionIndex === 1 ? 0 : 1);
+                    return;
+                case RemoteKeys.OK:
+                    event.stopPropagation();
+                    detailsActionIndex === 0 ? toggleFavorite() : toggleRecording();
+                    return;
+                case RemoteKeys.CHANNEL_UP:
+                case RemoteKeys.CHANNEL_DOWN:
+                    // fall through to the normal handler so zapping always works
+                    break;
+                default:
+                    break;
+            }
+        }
+
         switch (keyCode) {
-            case 33: // programm up
-            case 38: // arrow up
+            case RemoteKeys.ARROW_UP:
                 event.stopPropagation();
                 scrollUp();
                 break;
-            case 34: // programm down
-            case 40: // arrow down
+            case RemoteKeys.ARROW_DOWN:
                 event.stopPropagation();
                 scrollDown();
                 break;
-            case 67: // keyboard 'c'
-            case 461: // back button
+            case RemoteKeys.CHANNEL_UP:
+                event.stopPropagation();
+                if (currentChannelPosition < epgData.getChannelCount() - 1) {
+                    setCurrentChannelPosition(currentChannelPosition + 1);
+                    setChannelPosition(currentChannelPosition + 1);
+                }
+                break;
+            case RemoteKeys.CHANNEL_DOWN:
+                event.stopPropagation();
+                if (currentChannelPosition > 0) {
+                    setCurrentChannelPosition(currentChannelPosition - 1);
+                    setChannelPosition(currentChannelPosition - 1);
+                }
+                break;
+            case RemoteKeys.KEY_C:
+            case RemoteKeys.BACK:
                 event.stopPropagation();
                 props.unmount();
                 break;
-            case 13: // ok button -> switch to focused channel
+            case RemoteKeys.OK:
                 event.stopPropagation();
-                setCurrentChannelPosition(channelPosition.current);
-                props.unmount();
+                handleOkDown();
                 break;
-            case 82: // keyboard 'r'
-            case 403: {
+            case RemoteKeys.KEY_R:
+            case RemoteKeys.RED: {
                 // red button trigger recording
                 event.stopPropagation();
                 toggleRecording();
                 break;
             }
-            case 39: // right arrow
+            case RemoteKeys.ARROW_RIGHT:
                 event.stopPropagation();
                 if (state === State.DETAILS) {
                     // switch to next event details
@@ -394,7 +527,7 @@ const ChannelList = (props: {
                     setState(State.DETAILS);
                 }
                 break;
-            case 37: // left arrow
+            case RemoteKeys.ARROW_LEFT:
                 event.stopPropagation();
                 if (state === State.DETAILS && focusedEventOffset.current > 0) {
                     // switch to previous event details
@@ -405,12 +538,57 @@ const ChannelList = (props: {
                     setState(State.NORMAL);
                 }
                 break;
+            case RemoteKeys.GUIDE:
+                // let it bubble to TV so it can switch to the EPG
+                break;
             default:
                 console.log('ChannelList-keyPressed:', keyCode);
         }
 
         // pass unhandled events to parent
         if (!event.isPropagationStopped) return event;
+    };
+
+    const handleKeyUp = (event: React.KeyboardEvent<HTMLDivElement>) => {
+        if (event.keyCode === RemoteKeys.OK) {
+            event.stopPropagation();
+            handleOkUp();
+        }
+    };
+
+    const toggleFavorite = () => {
+        const channel = epgData.getChannel(channelPosition.current);
+        if (!channel) return;
+        FavoritesStore.toggle(channel.getUUID());
+        // the favorites-filtered view depends on epgData's cached favorite set,
+        // so it must be refreshed before the canvas redraws or a channel
+        // removed from favorites while "Favorites" is the active filter would
+        // still be positioned as if it were present
+        bumpFavoritesVersion();
+        // bumpFavoritesVersion schedules a React state update, and the effect
+        // watching favoritesVersion (Task 10) will repaint on the next render -
+        // but that is at least a frame away. Redraw immediately here too so the
+        // star appears the instant the hold fires rather than one frame later.
+        updateCanvas();
+    };
+    // keep the trampoline pointed at the latest closure every render, so the
+    // long-lived HoldGesture instance never invokes a stale toggleFavorite
+    onToggleFavoriteRef.current = toggleFavorite;
+
+    const handleOkDown = () => {
+        holdGesture.current.down();
+    };
+
+    const handleOkUp = () => {
+        // up() itself distinguishes "hold already fired" from "this press's
+        // key-down was consumed elsewhere before it ever reached down()" -
+        // e.g. the filter rail intercepts OK and calls applyFocusedFilter()
+        // before the main switch (and handleOkDown) ever runs. Either way it
+        // reports no select; only a genuine short press reports true.
+        if (holdGesture.current.up()) {
+            setCurrentChannelPosition(channelPosition.current);
+            props.unmount();
+        }
     };
 
     const toggleRecording = () => {
@@ -441,13 +619,22 @@ const ChannelList = (props: {
     };
 
     const scrollUp = () => {
-        // if we reached 0 we scroll to end of list
         if (channelPosition.current === 0) {
-            setChannelPosition(epgData.getChannelCount() - 1);
+            // at the top row, move focus into the filter rail
+            setState(State.RAIL);
         } else {
-            // channel down
             setChannelPosition(channelPosition.current - 1);
         }
+    };
+
+    const applyFocusedFilter = () => {
+        const entry = railEntries[railFocusedIndex];
+        if (entry) {
+            setActiveFilter(entry.filter);
+            // the filtered view has changed - restart at the top of it
+            setChannelPosition(0);
+        }
+        setState(State.NORMAL);
     };
 
     const scrollDown = () => {
@@ -527,14 +714,34 @@ const ChannelList = (props: {
         return () => {
             // stop animation when unmounting
             cancelAnimationFrame(scrollAnimationId.current);
+            holdGesture.current.cancel();
         };
     }, []);
 
     useLayoutEffect(() => {
         if (state === State.DETAILS) {
+            setDetailsActionIndex(0);
             setDetailsData();
         }
     }, [state]);
+
+    useEffect(() => {
+        // the filtered view or the favorite markers changed - repaint
+        recalculateAndRedraw(false);
+    }, [activeFilter, favoritesVersion]);
+
+    useEffect(() => {
+        // activeFilter can change from outside this component (the background
+        // tag load re-applying the persisted filter, the first-run picker) -
+        // keep the rail's keyboard focus following the pill that is actually
+        // active rather than the one it happened to start on. Left/Right
+        // navigation while the rail is open never touches activeFilter, so
+        // this cannot fight with the user moving between pills.
+        const index = railEntries.findIndex((entry) => isSameFilter(entry.filter, activeFilter));
+        if (index >= 0) {
+            setRailFocusedIndex(index);
+        }
+    }, [activeFilter, channelTags]);
 
     return (
         <div
@@ -542,10 +749,22 @@ const ChannelList = (props: {
             ref={listWrapper}
             tabIndex={-1}
             onKeyDown={handleKeyPress}
+            onKeyUp={handleKeyUp}
             onWheel={handleScrollWheel}
             onClick={handleClick}
             className="channelList"
         >
+            <FilterRail
+                entries={railEntries}
+                activeFilter={activeFilter}
+                focusedIndex={railFocusedIndex}
+                isFocused={state === State.RAIL}
+            />
+
+            {epgData.isFilterEmpty() && (
+                <div className="channelListEmptyBanner">No favorites yet &mdash; hold OK on a channel to add it</div>
+            )}
+
             <canvas ref={canvas} width={getWidth()} height={getHeight()} style={{ display: 'block' }} />
 
             {state === State.DETAILS && (
@@ -557,6 +776,9 @@ const ChannelList = (props: {
                     currentEvent={detailsState?.focusedEvent}
                     nextEvents={nextEvents.current}
                     nextSameEvents={nextSameEvents.current}
+                    focusedActionIndex={detailsActionIndex}
+                    onToggleFavorite={toggleFavorite}
+                    onToggleRecording={toggleRecording}
                 />
             )}
         </div>

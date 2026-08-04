@@ -8,13 +8,18 @@ import AppContext, { AppVisibilityState } from './AppContext';
 import EPGChannel from './models/EPGChannel';
 import StorageHelper from './utils/StorageHelper';
 import Menu, { MenuItem } from './components/Menu';
+import FavoritesStore from './utils/FavoritesStore';
+import CategoryStore from './utils/CategoryStore';
+import CategorySetup from './components/CategorySetup';
+import RemoteKeys from './utils/RemoteKeys';
 
 export enum AppViewState {
     TV,
     SETTINGS,
     RECORDINGS,
     HELP,
-    CONTACT
+    CONTACT,
+    CATEGORIES
 }
 
 const App = () => {
@@ -29,8 +34,11 @@ const App = () => {
         setTvhDataService,
         epgData,
         imageCache,
+        setCurrentChannelPosition,
         setPersistentAuthToken,
-        setAnimationsEnabled
+        setAnimationsEnabled,
+        setChannelTags,
+        setActiveFilter
     } = useContext(AppContext);
 
     const [isChannelsRetrieved, setIsChannelsRetrieved] = useState(false);
@@ -55,6 +63,12 @@ const App = () => {
             label: 'Setup',
             action: () => updateAppViewState(AppViewState.SETTINGS),
             isActive: appViewState === AppViewState.SETTINGS
+        },
+        {
+            icon: 'funnel',
+            label: 'Categories',
+            action: () => updateAppViewState(AppViewState.CATEGORIES),
+            isActive: appViewState === AppViewState.CATEGORIES
         },
         {
             icon: 'denselist',
@@ -105,8 +119,29 @@ const App = () => {
             const channels = await tvhDataService.retrieveM3UChannels();
             setDebugInfo("Updating channels ("+channels.length+")...");
             epgData.updateChannels(channels);
+            // restore favorites and the persisted filter before resolving position
+            epgData.setFavoriteUuids(FavoritesStore.all());
+            epgData.setFilter(CategoryStore.getActiveFilter());
+            setCurrentChannelPosition(StorageHelper.resolveInitialChannelPosition(epgData.getChannels()));
             setDebugInfo("Channels retrieved true...");
             setIsChannelsRetrieved(true);
+
+            // categories are additive - never block startup on them
+            tvhDataService
+                .retrieveChannelTags()
+                .then((tags) => {
+                    setChannelTags(tags);
+                    // re-apply the filter now that channels carry their tags - routed
+                    // through the context so the playing channel is pinned and the
+                    // position reconciled, same as any other filter change
+                    setActiveFilter(CategoryStore.getActiveFilter());
+                    // first run (or a fresh install) - send the user to the picker
+                    // once tags are actually available to choose from
+                    if (tags.length > 0 && !CategoryStore.isConfigured()) {
+                        setAppViewState(AppViewState.CATEGORIES);
+                    }
+                })
+                .catch((error) => console.log('Failed to load channel tags:', error));
 
             // safe persistent token if available
             if (channels.length > 0) {
@@ -194,13 +229,13 @@ const App = () => {
         const keyCode = event.keyCode;
 
         switch (keyCode) {
-            case 404: // green button
-            case 71: //'g'
+            case RemoteKeys.GREEN:
+            case RemoteKeys.KEY_G:
                 event.stopPropagation();
                 setMenuState(!menuState);
                 break;
-            case 461: // back button
-            case 66: // 'b'
+            case RemoteKeys.BACK:
+            case RemoteKeys.KEY_B:
                 event.stopPropagation();
                 if (menuState) {
                     setMenuState(false);
@@ -279,6 +314,9 @@ const App = () => {
             {debugInfo && <div className="debug-info">{debugInfo}</div>}
             {menuState && <Menu items={menu} unmount={() => setAppViewState(AppViewState.TV)} />}
             {appViewState === AppViewState.SETTINGS && <TVHSettings unmount={() => setAppViewState(AppViewState.TV)} />}
+            {appViewState === AppViewState.CATEGORIES && (
+                <CategorySetup unmount={() => setAppViewState(AppViewState.TV)} />
+            )}
             {appViewState === AppViewState.TV && isChannelsRetrieved && <TV />}
             {appViewState === AppViewState.RECORDINGS && <Player />}
         </div>
