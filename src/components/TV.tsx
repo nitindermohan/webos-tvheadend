@@ -371,18 +371,22 @@ const TV = () => {
     const updateStreamSource = (streamUrl: URL) => {
         // show the channel info, if the channel was changed - but don't let a
         // zap steal the screen away from an overlay that owns it: CH+/CH-
-        // must zap from every screen (ChannelList's RAIL/DETAILS states and
-        // TVGuide's record-dialog guard deliberately fall through to their
-        // normal zap handling rather than closing first), and channel
-        // settings has no CH+/CH- handling of its own so the keypress bubbles
-        // straight here too. showCurrentChannelNumber() below still gives
-        // feedback via the channel-number header over whichever of these is
-        // open.
-        setState((prev) =>
-            prev === State.CHANNEL_LIST || prev === State.EPG || prev === State.CHANNEL_SETTINGS
-                ? prev
-                : State.CHANNEL_INFO
-        );
+        // must zap from every screen, and ChannelList's RAIL/DETAILS states
+        // and TVGuide's record-dialog guard deliberately fall through to
+        // their normal zap handling rather than closing first, so a zap must
+        // not force them shut either. showCurrentChannelNumber() below still
+        // gives feedback via the channel-number header over whichever of
+        // these is open.
+        //
+        // CHANNEL_SETTINGS is deliberately *not* preserved here: it has no
+        // CH+/CH- handling of its own, so a zap still reaches it and still
+        // works either way, but its audio/subtitle track list is built once
+        // for the channel that was playing when it opened
+        // (ChannelSettings.tsx's mount effect) and does not refresh on a
+        // zap - keeping the panel open across a channel change would leave
+        // it silently showing (and letting the user "select") the previous
+        // channel's tracks against the new channel.
+        setState((prev) => (prev === State.CHANNEL_LIST || prev === State.EPG ? prev : State.CHANNEL_INFO));
 
         changeSource(streamUrl);
 

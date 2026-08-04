@@ -121,18 +121,22 @@ export const AppContextProvider = ({ children }: { children: JSX.Element }) => {
         },
         favoritesVersion: favoritesVersion,
         bumpFavoritesVersion: () => {
-            // mirror setActiveFilter's reconcile just above: setFavoriteUuids
-            // re-runs applyFilter and can shrink the filtered view (e.g. the
-            // channel playing gets un-favorited while the favorites filter is
-            // active), which can leave currentChannelPosition pointing past
-            // the end of the new, shorter array. Capture who is playing
-            // before the filter re-applies, then re-resolve their position
-            // afterwards - using the ref, not the closed-over state value,
-            // for the same stale-closure reason setActiveFilter does (Task 8a)
+            // mirror setActiveFilter's reconcile just above in full: pin the
+            // playing channel *and* reconcile, not just the reconcile.
+            // setFavoriteUuids re-runs applyFilter and can shrink the
+            // filtered view - most pointedly when the channel un-favorited is
+            // the one currently playing, which drops it out of its own
+            // filtered view entirely unless it is pinned first. Capture who
+            // is playing before the filter re-applies, then re-resolve their
+            // position afterwards - using the ref, not the closed-over state
+            // value, for the same stale-closure reason setActiveFilter does
+            // (Task 8a)
             const playingChannel = epgData.getChannel(currentChannelPositionRef.current);
+            if (playingChannel) {
+                epgData.setPinnedChannelUuid(playingChannel.getUUID());
+            }
 
             epgData.setFavoriteUuids(FavoritesStore.all());
-            setFavoritesVersion((version) => version + 1);
 
             // guard -1 defensively - resetting to 0 would change what is playing
             if (playingChannel) {
@@ -141,6 +145,13 @@ export const AppContextProvider = ({ children }: { children: JSX.Element }) => {
                     setCurrentChannelPosition(position);
                 }
             }
+
+            // bump last: the hold-to-favorite gesture reaches this from a
+            // setTimeout, which React 16 does not batch, so committing the
+            // version before the reconcile above would leave a render where
+            // epgData is already re-filtered but currentChannelPosition is
+            // still stale
+            setFavoritesVersion((version) => version + 1);
         }
     };
 

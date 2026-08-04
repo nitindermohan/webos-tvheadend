@@ -228,4 +228,102 @@ describe('AppContext bumpFavoritesVersion wiring', () => {
         });
         document.body.removeChild(container);
     });
+
+    /**
+     * The test above happens to call setActiveFilter before any channels
+     * exist, so setActiveFilter's own pin (AppContext.tsx:104-107) never
+     * fires and never masks a missing pin in bumpFavoritesVersion. This test
+     * closes that gap: setActiveFilter runs with channels already loaded (so
+     * it genuinely pins whoever is playing at the time), the user then zaps
+     * to a *different* channel within the filtered view, and un-favorites
+     * that one - the one actually playing, not the one setActiveFilter
+     * pinned. Without its own pin, bumpFavoritesVersion has nothing to keep
+     * the playing channel in view once it stops matching the filter, even
+     * though its reconcile logic is otherwise correct.
+     *
+     * Lineup A,B,C,D; favorites {A,B,C} (D never favorited, just lineup
+     * padding so "favorites" is a genuine subset). Favorites picked while A
+     * is playing -> setActiveFilter pins A. Zap to C. Un-favorite C.
+     */
+    it('reconciles the playing position when the channel un-favorited is the one playing, not the one a prior filter change pinned', async () => {
+        const container = document.createElement('div');
+        document.body.appendChild(container);
+
+        let resolveDone: () => void = () => undefined;
+        const done = new Promise<void>((resolve) => {
+            resolveDone = resolve;
+        });
+
+        const observedPositions: number[] = [];
+        let epgDataRef: import('./models/EPGData').default | undefined;
+
+        const Harness = () => {
+            const ctx = useContext(AppContext);
+            useEffect(() => {
+                epgDataRef = ctx.epgData;
+
+                FavoritesStore.add('uuid-a');
+                FavoritesStore.add('uuid-b');
+                FavoritesStore.add('uuid-c');
+
+                ctx.epgData.updateChannels([
+                    channel(1, 'uuid-a', []),
+                    channel(2, 'uuid-b', []),
+                    channel(3, 'uuid-c', []),
+                    channel(4, 'uuid-d', [])
+                ]);
+
+                // sync epgData's favorite set with the store while the
+                // filter is still ALL_CHANNELS (the default), so this does
+                // not itself interact with filtering yet
+                ctx.bumpFavoritesVersion();
+
+                // pick "Favorites" from the rail while A (index 0) is playing
+                // - this is setActiveFilter's own pin, on A
+                ctx.setActiveFilter(FAVORITE_CHANNELS);
+
+                // zap to C, which is now playing at index 2 in [A, B, C]
+                ctx.setCurrentChannelPosition(2);
+
+                // un-favorite C (the channel actually playing) - not A (the
+                // channel setActiveFilter pinned)
+                FavoritesStore.remove('uuid-c');
+                ctx.bumpFavoritesVersion();
+
+                resolveDone();
+                // eslint-disable-next-line react-hooks/exhaustive-deps
+            }, []);
+            return null;
+        };
+
+        const Reader = () => {
+            const ctx = useContext(AppContext);
+            observedPositions.push(ctx.currentChannelPosition);
+            return null;
+        };
+
+        await act(async () => {
+            ReactDOM.render(
+                <AppContextProvider>
+                    <>
+                        <Harness />
+                        <Reader />
+                    </>
+                </AppContextProvider>,
+                container
+            );
+            await done;
+        });
+
+        // C must still be the channel found at currentChannelPosition -
+        // bumpFavoritesVersion must pin the channel actually playing itself,
+        // not rely on whatever setActiveFilter pinned earlier.
+        const finalPosition = observedPositions[observedPositions.length - 1];
+        expect(epgDataRef?.getChannel(finalPosition)?.getUUID()).toBe('uuid-c');
+
+        act(() => {
+            ReactDOM.unmountComponentAtNode(container);
+        });
+        document.body.removeChild(container);
+    });
 });
