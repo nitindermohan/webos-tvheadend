@@ -90,6 +90,7 @@ const ChannelList = (props: {
         const index = railEntries.findIndex((entry) => isSameFilter(entry.filter, activeFilter));
         return index >= 0 ? index : 1;
     });
+    const [detailsActionIndex, setDetailsActionIndex] = useState(0);
 
     const getTopFrom = (position: number) => {
         const y = position * mChannelLayoutHeight + mFilterRailHeight;
@@ -453,6 +454,29 @@ const ChannelList = (props: {
             }
         }
 
+        if (state === State.DETAILS) {
+            switch (keyCode) {
+                case RemoteKeys.ARROW_UP:
+                    event.stopPropagation();
+                    setDetailsActionIndex(detailsActionIndex === 0 ? 1 : 0);
+                    return;
+                case RemoteKeys.ARROW_DOWN:
+                    event.stopPropagation();
+                    setDetailsActionIndex(detailsActionIndex === 1 ? 0 : 1);
+                    return;
+                case RemoteKeys.OK:
+                    event.stopPropagation();
+                    detailsActionIndex === 0 ? toggleFavorite() : toggleRecording();
+                    return;
+                case RemoteKeys.CHANNEL_UP:
+                case RemoteKeys.CHANNEL_DOWN:
+                    // fall through to the normal handler so zapping always works
+                    break;
+                default:
+                    break;
+            }
+        }
+
         switch (keyCode) {
             case RemoteKeys.ARROW_UP:
                 event.stopPropagation();
@@ -696,6 +720,7 @@ const ChannelList = (props: {
 
     useLayoutEffect(() => {
         if (state === State.DETAILS) {
+            setDetailsActionIndex(0);
             setDetailsData();
         }
     }, [state]);
@@ -751,6 +776,9 @@ const ChannelList = (props: {
                     currentEvent={detailsState?.focusedEvent}
                     nextEvents={nextEvents.current}
                     nextSameEvents={nextSameEvents.current}
+                    focusedActionIndex={detailsActionIndex}
+                    onToggleFavorite={toggleFavorite}
+                    onToggleRecording={toggleRecording}
                 />
             )}
         </div>

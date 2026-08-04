@@ -345,8 +345,20 @@ body {
     color: #ffcc4d;
 }
 
-.favoriteAction {
+.detailsActions {
+    margin-top: 24px;
+}
+
+.detailsAction {
     font-size: 26px;
-    color: #ffcc4d;
-    padding: 12px 0;
+    color: rgba(233, 238, 244, 0.8);
+    padding: 10px 16px;
+    border: 2px solid transparent;
+    border-radius: 8px;
+}
+
+.detailsAction.focused {
+    border-color: #ffcc4d;
+    color: #ffffff;
+    background-color: rgba(255, 255, 255, 0.09);
 }

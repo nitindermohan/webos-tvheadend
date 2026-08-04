@@ -14,6 +14,7 @@ import { Panel } from '@enact/moonstone/Panels';
 import { AppViewState } from '../App';
 import RemoteKeys from '../utils/RemoteKeys';
 import { ALL_CHANNELS } from '../models/ChannelFilter';
+import HoldGesture from '../utils/HoldGesture';
 
 export enum State {
     TV = 'tv',
@@ -41,6 +42,17 @@ const TV = () => {
     const timeoutChangeChannel = useRef<NodeJS.Timeout | null>(null);
     const audioTracksRef = useRef<AudioTrackList>();
     const textTracksRef = useRef<TextTrackList>();
+
+    // hold-to-open-audio-settings state for the OK button on live TV, mirroring
+    // ChannelList's hold-to-favorite gesture (Task 11) - see HoldGesture.ts for
+    // why this is a separate, independently tested state machine rather than
+    // inline refs, and ChannelList.tsx for why the callback goes through a
+    // trampoline ref (onOkHoldRef) updated every render: the HoldGesture
+    // instance is created once and must always invoke the *current* render's
+    // handleChannelSettingsSwitch (which closes over `state`), not the one
+    // captured when the instance was constructed.
+    const onOkHoldRef = useRef<() => void>(() => undefined);
+    const okHoldGesture = useRef(new HoldGesture(600, () => onOkHoldRef.current()));
 
     const [isVideoPlaying, setIsVideoPlaying] = useState(false);
     const [state, setState] = useState<State>(State.CHANNEL_INFO);
@@ -116,12 +128,13 @@ const TV = () => {
                 event.stopPropagation();
                 setState(State.EPG);
                 break;
-            case RemoteKeys.OK: {
-                // ok button ->show/disable channel info
+            case RemoteKeys.OK:
+                // ok button -> a short press shows/hides channel info; holding
+                // it opens audio/subtitle settings - see handleKeyUp, which
+                // decides which one happened once the key is released
                 event.stopPropagation();
-                handleChannelInfoSwitch();
+                okHoldGesture.current.down();
                 break;
-            }
             case RemoteKeys.YELLOW:
             case RemoteKeys.KEY_Y:
                 event.stopPropagation();
@@ -158,6 +171,23 @@ const TV = () => {
         }
 
         state !== State.CHANNEL_SETTINGS ? setState(State.CHANNEL_SETTINGS) : setState(State.TV);
+    };
+    // keep the trampoline pointed at the latest closure every render, so the
+    // long-lived HoldGesture instance never invokes a stale handleChannelSettingsSwitch
+    onOkHoldRef.current = handleChannelSettingsSwitch;
+
+    const handleKeyUp = (event: React.KeyboardEvent<HTMLDivElement>) => {
+        if (event.keyCode !== RemoteKeys.OK) return;
+        event.stopPropagation();
+        // up() itself distinguishes "hold already fired" from "this press's
+        // key-down was consumed elsewhere before it ever reached down()" -
+        // e.g. the EPG stops propagation on OK key-down before it ever
+        // reaches here (see TVGuide.tsx), so its release must not be
+        // mistaken for a short press on live TV. Either way it reports no
+        // select; only a genuine short press on live TV reports true.
+        if (okHoldGesture.current.up()) {
+            handleChannelInfoSwitch();
+        }
     };
 
     const handleScrollWheel = () => {
@@ -345,6 +375,8 @@ const TV = () => {
         focus();
 
         return () => {
+            // cancel a pending hold so it cannot fire after unmount
+            okHoldGesture.current.cancel();
             const videoElement = getMediaElement();
             if (!videoElement) return;
             resetPlayer(videoElement);
@@ -420,6 +452,7 @@ const TV = () => {
             ref={tvWrapper}
             tabIndex={-1}
             onKeyDown={handleKeyPress}
+            onKeyUp={handleKeyUp}
             onWheel={handleScrollWheel}
             onClick={handleClick}
             className={isVideoPlaying ? 'tv playing' : 'tv loading'}

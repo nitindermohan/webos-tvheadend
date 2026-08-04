@@ -11,8 +11,14 @@ const ChannelListDetails = (props: {
     epgChannel?: EPGChannel;
     nextEvents: EPGEvent[]; // next events in line
     nextSameEvents: EPGEvent[]; // next events with same title
+    // optional: RecordingList (a second, older consumer of this component)
+    // renders read-only recording details and does not pass these - the
+    // action row only appears for callers that supply both callbacks
+    focusedActionIndex?: number;
+    onToggleFavorite?: () => void;
+    onToggleRecording?: () => void;
 }) => {
-    const { locale, bumpFavoritesVersion } = useContext(AppContext);
+    const { locale } = useContext(AppContext);
     const channelListDetailsWrapper = useRef<HTMLDivElement>(null);
 
     const formatTime = (event: EPGEvent | undefined, date?: boolean): string | undefined => {
@@ -48,10 +54,6 @@ const ChannelListDetails = (props: {
         return itemList;
     };
 
-    // bound to a const so the callback below narrows without a non-null
-    // assertion - `props.epgChannel` is not narrowed inside a closure
-    const favoriteChannel = props.epgChannel;
-
     return (
         <div
             id="channel-list-details"
@@ -60,24 +62,24 @@ const ChannelListDetails = (props: {
             className="channelListDetails"
             style={{ display: 'block' }}
         >
-            {favoriteChannel && (
-                <div
-                    className="favoriteAction"
-                    onClick={(event) => {
-                        // ChannelList's own wrapper has an onClick that selects
-                        // the focused channel and closes the list (its mouse
-                        // equivalent of a short OK press) - without stopping
-                        // propagation here, every click on this row would
-                        // bubble up and immediately close the list right after
-                        // toggling the favorite
-                        event.stopPropagation();
-                        FavoritesStore.toggle(favoriteChannel.getUUID());
-                        bumpFavoritesVersion();
-                    }}
-                >
-                    {FavoritesStore.has(favoriteChannel.getUUID())
-                        ? '★ Remove from favorites'
-                        : '☆ Add to favorites'}
+            {props.epgChannel && props.onToggleFavorite && props.onToggleRecording && (
+                <div className="detailsActions">
+                    <div
+                        className={props.focusedActionIndex === 0 ? 'detailsAction focused' : 'detailsAction'}
+                        onClick={props.onToggleFavorite}
+                    >
+                        {FavoritesStore.has(props.epgChannel.getUUID())
+                            ? '★ Remove from favorites'
+                            : '☆ Add to favorites'}
+                    </div>
+                    <div
+                        className={props.focusedActionIndex === 1 ? 'detailsAction focused' : 'detailsAction'}
+                        onClick={props.onToggleRecording}
+                    >
+                        {props.currentEvent && props.isRecording(props.currentEvent)
+                            ? '● Cancel recording'
+                            : '● Record'}
+                    </div>
                 </div>
             )}
             <div>

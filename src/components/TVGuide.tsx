@@ -1,7 +1,7 @@
 /**
  * Created by satadru on 3/31/17.
  */
-import React, { useContext, useEffect, useRef } from 'react';
+import React, { useContext, useEffect, useRef, useState } from 'react';
 
 import Rect from '../models/Rect';
 import EPGUtils from '../utils/EPGUtils';
@@ -9,6 +9,7 @@ import CanvasUtils from '../utils/CanvasUtils';
 import EPGEvent from '../models/EPGEvent';
 import AppContext from '../AppContext';
 import RemoteKeys from '../utils/RemoteKeys';
+import DialogPopup from './DialogPopup';
 import '../styles/app.css';
 
 const DAYS_BACK_MILLIS = 2 * 60 * 60 * 1000; // 2 hours
@@ -40,6 +41,8 @@ const TVGuide = (props: {
     const timeUpperBoundary = useRef(0);
     const scrollX = useRef(0);
     const scrollY = useRef(0);
+
+    const [recordDialogEvent, setRecordDialogEvent] = useState<EPGEvent | undefined>(undefined);
 
     const mDrawingRect = new Rect();
     const mMeasuringRect = new Rect();
@@ -700,6 +703,27 @@ const TVGuide = (props: {
         let eventPosition = focusedEventPosition.current;
         const channelPosition = focusedChannelPosition.current;
 
+        if (recordDialogEvent) {
+            // the record dialog owns the screen while it is open - stop the
+            // grid's own key handling (arrow keys moving the focused event
+            // underneath it, OK re-opening/closing the dialog) from running,
+            // and stop the press from bubbling further up to TV.tsx, which
+            // would otherwise misinterpret an OK press meant for the
+            // dialog's own button as its hold-to-open-audio-settings gesture
+            // (TV.tsx has no way to know a dialog is showing here). BACK
+            // closes the dialog without acting; OK is left entirely to the
+            // dialog's focused button - Enact's Spottable wires
+            // select-on-keyup directly onto the button element itself, so
+            // it still fires regardless of this stopPropagation on an
+            // ancestor.
+            event.stopPropagation();
+            if (keyCode === RemoteKeys.BACK) {
+                setRecordDialogEvent(undefined);
+                focus();
+            }
+            return;
+        }
+
         // do not pass this event to parents
         switch (keyCode) {
             case RemoteKeys.ARROW_RIGHT:
@@ -754,11 +778,19 @@ const TVGuide = (props: {
                 event.stopPropagation();
                 props.unmount();
                 break;
-            case RemoteKeys.OK: // ok button -> switch to focused channel
+            case RemoteKeys.OK: {
+                // ok button -> switch to focused channel, unless it is a
+                // future programme - then open the record dialog instead
                 event.stopPropagation();
+                const focusedEvent = epgData.getEvent(channelPosition, eventPosition);
+                if (focusedEvent && !focusedEvent.isCurrent() && !focusedEvent.isPastDated(EPGUtils.getNow())) {
+                    setRecordDialogEvent(focusedEvent);
+                    return;
+                }
                 props.unmount();
                 setCurrentChannelPosition(channelPosition);
                 break;
+            }
             default:
                 console.log('EPG-keyPressed:', keyCode);
         }
@@ -941,6 +973,28 @@ const TVGuide = (props: {
             <div className="programguide-contents" ref={programguideContents}>
                 <canvas ref={canvas} width={getWidth()} height={getHeight()} style={{ display: 'block' }} />
             </div>
+
+            {recordDialogEvent && (
+                <DialogPopup
+                    title={recordDialogEvent.getTitle()}
+                    subtitle={
+                        epgData.isRecording(recordDialogEvent)
+                            ? 'Cancel the planned recording?'
+                            : 'Record this programme?'
+                    }
+                    confirmText={epgData.isRecording(recordDialogEvent) ? 'Cancel recording' : 'Record'}
+                    abortText="Close"
+                    confirmAction={() => {
+                        props.toggleRecording(recordDialogEvent, () => updateCanvas());
+                        setRecordDialogEvent(undefined);
+                        focus();
+                    }}
+                    abortAcion={() => {
+                        setRecordDialogEvent(undefined);
+                        focus();
+                    }}
+                ></DialogPopup>
+            )}
         </div>
     );
 };
