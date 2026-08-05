@@ -11,6 +11,10 @@ import AppContext from '../AppContext';
 import RemoteKeys from '../utils/RemoteKeys';
 import { visibleEvents } from '../utils/EventWindow';
 import DialogPopup from './DialogPopup';
+import EpgSidebar, { SIDEBAR_WIDTH } from './EpgSidebar';
+import { buildFilterEntries, indexOfFilter } from '../utils/FilterEntries';
+import { wrapIndex } from '../utils/ListNavigation';
+import CategoryStore from '../utils/CategoryStore';
 import '../styles/app.css';
 
 const DAYS_BACK_MILLIS = 2 * 60 * 60 * 1000; // 2 hours
@@ -26,8 +30,18 @@ const TVGuide = (props: {
     toggleRecording: (event: EPGEvent, callback: () => unknown) => void;
     unmount: () => void;
 }) => {
-    const { locale, currentChannelPosition, epgData, imageCache, logoVersion, setCurrentChannelPosition } =
-        useContext(AppContext);
+    const {
+        locale,
+        currentChannelPosition,
+        epgData,
+        imageCache,
+        logoVersion,
+        setCurrentChannelPosition,
+        channelTags,
+        activeFilter,
+        setActiveFilter,
+        favoritesVersion
+    } = useContext(AppContext);
 
     const canvas = useRef<HTMLCanvasElement>(null);
     const epgWrapper = useRef<HTMLDivElement>(null);
@@ -45,6 +59,13 @@ const TVGuide = (props: {
     const scrollY = useRef(0);
 
     const [recordDialogEvent, setRecordDialogEvent] = useState<EPGEvent | undefined>(undefined);
+
+    // The category sidebar. It is always on screen - the grid is drawn into the
+    // remaining width rather than being overlapped - so it needs no open/close
+    // state, only whether it holds focus and which row the cursor is on.
+    const sidebarEntries = buildFilterEntries(channelTags, CategoryStore.getSelectedTagUuids());
+    const [isSidebarFocused, setSidebarFocused] = useState(false);
+    const [sidebarIndex, setSidebarIndex] = useState(() => Math.max(0, indexOfFilter(sidebarEntries, activeFilter)));
 
     const mDrawingRect = new Rect();
     const mMeasuringRect = new Rect();
@@ -153,8 +174,16 @@ const TVGuide = (props: {
 
     const setScrollY = (value: number) => (scrollY.current = value);
 
+    /**
+     * The width the *grid* gets, which is the screen minus the category
+     * sidebar. Every x-coordinate in this file is derived from this (directly,
+     * or through getXFrom/calculateMillisPerPixel), and the canvas element is
+     * sized to it and shifted right by SIDEBAR_WIDTH in the markup below - so
+     * the grid keeps drawing into a space whose origin is 0 and the sidebar
+     * never overlaps it. That is the whole reason one constant is enough here.
+     */
     const getWidth = () => {
-        return window.innerWidth;
+        return window.innerWidth - SIDEBAR_WIDTH;
     };
 
     const getHeight = () => {
@@ -741,6 +770,36 @@ const TVGuide = (props: {
             }
         }
 
+        if (isSidebarFocused) {
+            switch (keyCode) {
+                case RemoteKeys.ARROW_UP:
+                    event.stopPropagation();
+                    setSidebarIndex(wrapIndex(sidebarIndex, sidebarEntries.length, -1));
+                    return;
+                case RemoteKeys.ARROW_DOWN:
+                    event.stopPropagation();
+                    setSidebarIndex(wrapIndex(sidebarIndex, sidebarEntries.length, 1));
+                    return;
+                case RemoteKeys.OK:
+                    event.stopPropagation();
+                    applySidebarFilter(sidebarIndex);
+                    return;
+                case RemoteKeys.ARROW_RIGHT:
+                case RemoteKeys.ARROW_LEFT:
+                    event.stopPropagation();
+                    setSidebarFocused(false);
+                    return;
+                case RemoteKeys.CHANNEL_UP:
+                case RemoteKeys.CHANNEL_DOWN:
+                    // fall through to the normal handler so zapping always works
+                    break;
+                default:
+                    // BACK and GUIDE close the guide from here too, exactly as
+                    // they do from the grid
+                    break;
+            }
+        }
+
         // do not pass this event to parents
         switch (keyCode) {
             case RemoteKeys.ARROW_RIGHT:
@@ -755,6 +814,13 @@ const TVGuide = (props: {
                 break;
             case RemoteKeys.ARROW_LEFT:
                 event.stopPropagation();
+                if (eventPosition === 0) {
+                    // against the left wall of this channel's timeline. Stepping
+                    // out into the sidebar costs nothing: scrollToEventPosition
+                    // clamps at 0, so this press used to do nothing at all.
+                    enterSidebar();
+                    break;
+                }
                 if (eventPosition < 0) {
                     const prevEvent = epgData.getEventBeforeTimestamp(channelPosition, timePosition.current);
                     prevEvent && scrollToEventPosition(epgData.getEventPosition(channelPosition, prevEvent));
@@ -769,7 +835,7 @@ const TVGuide = (props: {
                 return;
             case RemoteKeys.ARROW_UP:
                 event.stopPropagation();
-                scrollUp();
+                scrollUp(true);
                 return;
             case RemoteKeys.CHANNEL_UP:
                 event.stopPropagation();
@@ -813,13 +879,37 @@ const TVGuide = (props: {
         }
     };
 
-    const scrollUp = () => {
+    /**
+     * @param allowSidebar true for the arrow key, which steps out of the top of
+     * the lineup into the category sidebar - the same gesture that reaches the
+     * category bar in the channel list. The scroll wheel passes false and keeps
+     * the old wrap-to-bottom, since a wheel has no way back out of a sidebar.
+     */
+    const scrollUp = (allowSidebar = false) => {
         let channelPosition = focusedChannelPosition.current;
-        channelPosition -= 1;
-        if (channelPosition < 0) {
-            channelPosition = epgData.getChannelCount() - 1;
+        if (channelPosition === 0) {
+            if (allowSidebar) {
+                enterSidebar();
+                return;
+            }
+            channelPosition = epgData.getChannelCount();
         }
+        channelPosition -= 1;
         scrollToChannelPosition(channelPosition, false);
+    };
+
+    const enterSidebar = () => {
+        // open on the active filter rather than wherever the cursor was left
+        setSidebarIndex(Math.max(0, indexOfFilter(sidebarEntries, activeFilter)));
+        setSidebarFocused(true);
+    };
+
+    const applySidebarFilter = (index: number) => {
+        const entry = sidebarEntries[index];
+        // AppContext pins the playing channel across the change, so switching
+        // category here never interrupts what is playing behind the guide
+        entry && setActiveFilter(entry.filter);
+        setSidebarFocused(false);
     };
 
     const scrollDown = () => {
@@ -966,6 +1056,26 @@ const TVGuide = (props: {
         updateCanvas();
     }, [logoVersion]);
 
+    useEffect(() => {
+        // The lineup underneath us just changed size and order. Every position
+        // this component holds - focusedChannelPosition, and the event position
+        // derived from it - indexes into the *filtered* view, so they now point
+        // at different channels or off the end entirely.
+        //
+        // Re-anchor on the playing channel: AppContext pins it across the
+        // filter change and re-resolves currentChannelPosition to its index in
+        // the new view, so it is the one position guaranteed to still mean what
+        // it did. Clamp anyway - an empty lineup would make count-1 negative.
+        const channelCount = epgData.getChannelCount();
+        if (channelCount === 0) {
+            return;
+        }
+        const position = Math.min(Math.max(currentChannelPosition, 0), channelCount - 1);
+        resetBoundaries();
+        scrollToChannelPosition(position, false);
+        updateCanvas();
+    }, [activeFilter, favoritesVersion]);
+
     const updateCanvas = () => {
         if (canvas.current) {
             const ctx = canvas.current.getContext('2d');
@@ -992,7 +1102,21 @@ const TVGuide = (props: {
             onClick={handleClick}
             className="epg"
         >
-            <div className="programguide-contents" ref={programguideContents}>
+            <EpgSidebar
+                entries={sidebarEntries}
+                activeFilter={activeFilter}
+                focusedIndex={sidebarIndex}
+                isFocused={isSidebarFocused}
+                onSelect={applySidebarFilter}
+            />
+
+            {/* shifted right by exactly the width getWidth() subtracts, so the
+                grid's own 0-origin coordinate space starts where the sidebar ends */}
+            <div
+                className="programguide-contents"
+                ref={programguideContents}
+                style={{ marginLeft: SIDEBAR_WIDTH }}
+            >
                 <canvas ref={canvas} width={getWidth()} height={getHeight()} style={{ display: 'block' }} />
             </div>
 

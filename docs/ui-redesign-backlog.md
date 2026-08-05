@@ -37,7 +37,12 @@ Still to do:
 - **Hit targets.** Pills and action rows are sized for a 10-foot D-pad UI, not
   for pointing. Review minimum target sizes.
 
-### Replace the horizontal filter rail with a category dropdown
+### ~~Replace the horizontal filter rail with a category dropdown~~ (done)
+
+**Built 2026-08-05.** `FilterRail` is gone, replaced by `CategoryBar` (channel
+list) and `EpgSidebar` (EPG). The record below is kept because it explains the
+constraints the implementation had to satisfy, and the three open questions at
+the end record how they were finally answered.
 
 **Decided direction (user, 2026-08-05).** The horizontal pill rail is being
 replaced rather than patched. Categories become a single collapsed control
@@ -90,18 +95,48 @@ the one being fixed.
 - **The dropdown belongs to the channel list only**, and renders to the side
   within it. Up/down still walk the channel list; the dropdown opens from the
   category control rather than stealing a direction key from the list.
-- **The EPG is out of scope.** It keeps its own channel column and stays
-  reachable from the menu (left button).
+- ~~**The EPG is out of scope.**~~ **Reversed by the user, 2026-08-05:** the EPG
+  needs its own category sidebar, because the guide shows only the active
+  filter's channels and there was no way to change filter from inside it.
+
+**How the three open questions were answered when this was built:**
+
+- **Which keypress opens the dropdown.** Up from the top channel row moves
+  focus into the bar (unchanged from the rail); left/right pick between the two
+  controls; OK opens the dropdown on the category control, or applies favorites
+  directly on the favorites control. No new key, and the favourites promise -
+  one press - is kept.
+- **Overlay, not shift.** The dropdown paints over the channel rows and
+  `BAR_HEIGHT` stays a fixed constant. Shifting rows would mean the canvas
+  geometry changed while the dropdown was open, and `getTopFrom` and
+  `ChannelListGeometry`'s pointer hit-test would have to be re-fed on every
+  open/close - the exact "drawn rows and click targets out of step" failure
+  this section warned about.
+- **Favourites sits beside the categories**, as its own control in the bar. It
+  is deliberately *not* also a dropdown row (see `buildCategoryEntries`),
+  or selecting it there would leave the dropdown highlighting a row that the
+  control next to it also claims.
+
+Two further decisions made during the build:
+
+- **`BAR_HEIGHT` now lives in `CategoryBar` and is applied to the element
+  inline**, rather than being a guess in `ChannelList` about what the CSS would
+  produce. The bar measures exactly 86px instead of the old rail's ~87, so the
+  "top row may lose a pixel" item below is resolved too.
+- **Provenance was not implemented.** The settled design asked for the dropdown
+  to open on the filter the playing channel was *chosen through*, tracked
+  separately from `activeFilter`. It opens on `activeFilter` instead. Selecting
+  a channel never changes the filter, so the two agree in every case except one:
+  changing filter without zapping, and there the user's most recent explicit
+  choice is the better thing to show. Adding a second, divergent piece of filter
+  state to serve only that case was not worth it. Revisit if it reads wrong on
+  the C5.
 
 **Still open:**
 
-- Exactly which control and keypress opens the dropdown. "Up into the category
-  control, then OK" matches how the rail behaves today and costs no new key,
-  but it should be confirmed against the real remote before building.
-- Whether the side dropdown overlays the channel rows or shifts them, which
-  decides whether `mFilterRailHeight` stays a fixed constant (see above).
-- Where the favourites control physically sits: its own box beside the
-  categories, or a pinned first row above them.
+- The EPG sidebar is entered with left (from the leftmost event) or up (from the
+  top channel row). Up at channel 0 used to wrap to the bottom of the lineup;
+  that wrap is now only on the scroll wheel. Worth confirming nobody misses it.
 
 ### Make the lists scrollable by pointer
 
@@ -121,11 +156,11 @@ deferred as cosmetic:
 
 | Item | Detail |
 |---|---|
-| Rail height is a hardcoded guess | `mFilterRailHeight = 86` in `ChannelList.tsx` is an estimate of the rail overlay's rendered height; the CSS measures to roughly 87px, so the top row may lose a pixel. The redesign should derive it or measure it rather than hardcode. |
+| ~~Rail height is a hardcoded guess~~ | **Done.** `BAR_HEIGHT = 86` is now exported by `CategoryBar` and applied to the element inline, so the rendered height *is* the constant `ChannelList` draws from rather than an estimate of it. Measured at 1920x1080: exactly 86px. |
+| ~~`.filterRail.focused` is inert~~ | **Done.** Gone with the rail. `CategoryBar` styles the individual control, and no wrapper class is toggled. |
+| ~~Empty-filter banner copy is fixed~~ | **Done.** The banner now reads "No channels in <category>" for a category filter and keeps the hold-OK hint only for favorites. |
 | Bottom row renders as a ~4px sliver | On a 1080-tall viewport, `86` is not a multiple of the 90px row height, so the last visible row is a thin strip. Consistent with the existing fade-in-while-scrolling design, but worth deciding on deliberately. |
 | Favorite star clearance is tight | The ★ sits in a 44px gap between the channel number (ends at x=70) and the name column (starts at x=114), with roughly 6px clear each side at an assumed ~32px glyph width. Never verified against real rendered glyph metrics. |
-| `.filterRail.focused` is inert | The rail wrapper toggles a `focused` class but no CSS rule exists for it — only the individual pill is styled when focused. Either style the wrapper or drop the class. |
-| Empty-filter banner copy is fixed | Reads "No favorites yet — hold OK on a channel to add it" for *any* empty filter. Briefly reachable with a tag filter during the ~1s window before tags load. Make the copy filter-aware. |
 | Channel name can overrun the logo | Worst case the name's right edge reaches x=783 against a logo starting at ~780, and x=810 on recording rows. Pre-existing; mitigated in practice by text truncation. |
 | Details panel lost channel browsing | ↑/↓ in the details panel now move between the two action rows rather than scrolling channels. Deliberate, but a capability was lost — reconsider in the redesign. |
 

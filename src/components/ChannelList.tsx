@@ -7,10 +7,12 @@ import ChannelListDetails from './ChannelListDetails';
 import EPGEvent from '../models/EPGEvent';
 import EPGChannel from '../models/EPGChannel';
 import EPGUtils from '../utils/EPGUtils';
-import FilterRail, { buildRailFilters, RailEntry } from './FilterRail';
+import CategoryBar, { BAR_HEIGHT, BarControl } from './CategoryBar';
+import { buildCategoryEntries, FilterEntry, indexOfFilter, labelForFilter } from '../utils/FilterEntries';
+import { wrapIndex } from '../utils/ListNavigation';
 import CategoryStore from '../utils/CategoryStore';
 import RemoteKeys from '../utils/RemoteKeys';
-import { isSameFilter } from '../models/ChannelFilter';
+import ChannelFilter, { FAVORITE_CHANNELS } from '../models/ChannelFilter';
 import FavoritesStore from '../utils/FavoritesStore';
 import HoldGesture from '../utils/HoldGesture';
 import { channelPositionAt } from '../utils/ChannelListGeometry';
@@ -21,7 +23,10 @@ const IS_DEBUG = false;
 enum State {
     NORMAL = 'normal',
     DETAILS = 'details',
-    RAIL = 'rail'
+    /** Focus is on one of the two header controls. */
+    BAR = 'bar',
+    /** The category dropdown is expanded and owns up/down. */
+    DROPDOWN = 'dropdown'
 }
 
 interface DetailsState {
@@ -76,7 +81,12 @@ const ChannelList = (props: {
     const mChannelLayoutHeight = 90;
     const mChannelLayoutWidth = 900;
     const mChannelLayoutBackgroundFocus = 'rgba(29,170,226,1)';
-    const mFilterRailHeight = 86;
+    // the category bar's height, which is also the y-origin of row 0. Owned by
+    // CategoryBar (which pins itself to exactly this) rather than guessed here,
+    // because getTopFrom and the pointer hit-test below both derive from it -
+    // a bar whose real height drifted from this number would put the drawn rows
+    // and the click targets out of step.
+    const mCategoryBarHeight = BAR_HEIGHT;
     // x-offset of the name column (channel name, recording mark, event
     // progress bar + text) from the row's left edge. Was a bare 90 in three
     // places (plus the two derived width calculations below) until the
@@ -87,15 +97,13 @@ const ChannelList = (props: {
     const [state, setState] = useState<State>(State.NORMAL);
     const [detailsState, setDetailsState] = useState<DetailsState>();
 
-    const railEntries: RailEntry[] = buildRailFilters(channelTags, CategoryStore.getSelectedTagUuids());
-    const [railFocusedIndex, setRailFocusedIndex] = useState(() => {
-        const index = railEntries.findIndex((entry) => isSameFilter(entry.filter, activeFilter));
-        return index >= 0 ? index : 1;
-    });
+    const categoryEntries: FilterEntry[] = buildCategoryEntries(channelTags, CategoryStore.getSelectedTagUuids());
+    const [barControl, setBarControl] = useState<BarControl>('category');
+    const [dropdownIndex, setDropdownIndex] = useState(() => Math.max(0, indexOfFilter(categoryEntries, activeFilter)));
     const [detailsActionIndex, setDetailsActionIndex] = useState(0);
 
     const getTopFrom = (position: number) => {
-        const y = position * mChannelLayoutHeight + mFilterRailHeight;
+        const y = position * mChannelLayoutHeight + mCategoryBarHeight;
         return y - scrollY.current;
     };
 
@@ -385,9 +393,9 @@ const ChannelList = (props: {
 
     const getLastVisibleChannelPosition = () => {
         const y = scrollY.current;
-        // rows start mFilterRailHeight lower than the canvas top, so that much
+        // rows start mCategoryBarHeight lower than the canvas top, so that much
         // less vertical space is actually available for them to render into
-        const screenHeight = getHeight() - mFilterRailHeight;
+        const screenHeight = getHeight() - mCategoryBarHeight;
         let position = Math.floor((y + screenHeight) / mChannelLayoutHeight);
 
         const channelCount = epgData.getChannelCount();
@@ -425,24 +433,65 @@ const ChannelList = (props: {
     const handleKeyPress = (event: React.KeyboardEvent<HTMLDivElement>) => {
         const keyCode = event.keyCode;
 
-        if (state === State.RAIL) {
+        if (state === State.BAR) {
             switch (keyCode) {
+                // the two header controls sit side by side, favorites first
                 case RemoteKeys.ARROW_LEFT:
                     event.stopPropagation();
-                    setRailFocusedIndex(railFocusedIndex > 0 ? railFocusedIndex - 1 : railEntries.length - 1);
+                    setBarControl('favorites');
                     return;
                 case RemoteKeys.ARROW_RIGHT:
                     event.stopPropagation();
-                    setRailFocusedIndex(railFocusedIndex < railEntries.length - 1 ? railFocusedIndex + 1 : 0);
+                    setBarControl('category');
                     return;
-                case RemoteKeys.ARROW_DOWN:
                 case RemoteKeys.OK:
                     event.stopPropagation();
-                    applyFocusedFilter();
+                    // favorites is a one-press control - it applies its filter
+                    // directly rather than being a row inside the dropdown
+                    barControl === 'favorites' ? applyFilter(FAVORITE_CHANNELS) : openDropdown();
                     return;
+                case RemoteKeys.ARROW_DOWN:
                 case RemoteKeys.BACK:
                     event.stopPropagation();
                     setState(State.NORMAL);
+                    return;
+                case RemoteKeys.ARROW_UP:
+                    // already at the top of the screen - swallow it rather than
+                    // letting the list handler bounce focus back into the bar
+                    event.stopPropagation();
+                    return;
+                case RemoteKeys.CHANNEL_UP:
+                case RemoteKeys.CHANNEL_DOWN:
+                    // fall through to the normal handler so zapping always works
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        if (state === State.DROPDOWN) {
+            switch (keyCode) {
+                case RemoteKeys.ARROW_UP:
+                    event.stopPropagation();
+                    setDropdownIndex(wrapIndex(dropdownIndex, categoryEntries.length, -1));
+                    return;
+                case RemoteKeys.ARROW_DOWN:
+                    event.stopPropagation();
+                    setDropdownIndex(wrapIndex(dropdownIndex, categoryEntries.length, 1));
+                    return;
+                case RemoteKeys.OK:
+                    event.stopPropagation();
+                    applyCategoryAt(dropdownIndex);
+                    return;
+                case RemoteKeys.BACK:
+                case RemoteKeys.ARROW_LEFT:
+                    event.stopPropagation();
+                    setState(State.BAR);
+                    return;
+                case RemoteKeys.ARROW_RIGHT:
+                    // swallowed: right must not open the details panel from
+                    // behind an expanded dropdown
+                    event.stopPropagation();
                     return;
                 case RemoteKeys.CHANNEL_UP:
                 case RemoteKeys.CHANNEL_DOWN:
@@ -631,7 +680,7 @@ const ChannelList = (props: {
             return -1;
         }
         return channelPositionAt(clientY - bounds.top, {
-            railHeight: mFilterRailHeight,
+            railHeight: mCategoryBarHeight,
             rowHeight: mChannelLayoutHeight,
             scrollY: scrollY.current,
             channelCount: epgData.getChannelCount()
@@ -653,29 +702,44 @@ const ChannelList = (props: {
 
     const scrollUp = () => {
         if (channelPosition.current === 0) {
-            // at the top row, move focus into the filter rail
-            setState(State.RAIL);
+            // at the top row, move focus into the category bar. Land on the
+            // control that owns the active filter, so the first thing focused
+            // is the one describing what is on screen
+            setBarControl(activeFilter.kind === 'favorites' ? 'favorites' : 'category');
+            setState(State.BAR);
         } else {
             setChannelPosition(channelPosition.current - 1);
         }
     };
 
-    const applyFilterAt = (index: number) => {
-        const entry = railEntries[index];
-        if (entry) {
-            setActiveFilter(entry.filter);
-            // the filtered view has changed - restart at the top of it
-            setChannelPosition(0);
-        }
+    const applyFilter = (filter: ChannelFilter) => {
+        setActiveFilter(filter);
+        // the filtered view has changed - restart at the top of it. The channel
+        // that is *playing* is unaffected: AppContext pins it across the filter
+        // change and re-resolves its position.
+        setChannelPosition(0);
         setState(State.NORMAL);
     };
 
-    const applyFocusedFilter = () => applyFilterAt(railFocusedIndex);
+    const applyCategoryAt = (index: number) => {
+        const entry = categoryEntries[index];
+        entry ? applyFilter(entry.filter) : setState(State.NORMAL);
+    };
 
-    /** Pointer path: the Magic Remote has a cursor, so pills are clickable. */
-    const selectRailEntry = (index: number) => {
-        setRailFocusedIndex(index);
-        applyFilterAt(index);
+    const openDropdown = () => {
+        // open on the active category rather than wherever the cursor was left
+        setDropdownIndex(Math.max(0, indexOfFilter(categoryEntries, activeFilter)));
+        // the pointer can open the dropdown without focus ever passing through
+        // the bar - make sure backing out of it lands on the control it came
+        // from rather than whichever one the keyboard last touched
+        setBarControl('category');
+        setState(State.DROPDOWN);
+    };
+
+    /** Pointer path: the Magic Remote has a cursor, so the controls are clickable. */
+    const selectCategoryAt = (index: number) => {
+        setDropdownIndex(index);
+        applyCategoryAt(index);
     };
 
     const scrollDown = () => {
@@ -780,13 +844,13 @@ const ChannelList = (props: {
     useEffect(() => {
         // activeFilter can change from outside this component (the background
         // tag load re-applying the persisted filter, the first-run picker) -
-        // keep the rail's keyboard focus following the pill that is actually
-        // active rather than the one it happened to start on. Left/Right
-        // navigation while the rail is open never touches activeFilter, so
-        // this cannot fight with the user moving between pills.
-        const index = railEntries.findIndex((entry) => isSameFilter(entry.filter, activeFilter));
+        // keep the dropdown's cursor on the category that is actually active
+        // rather than the one it happened to start on. Up/Down inside the
+        // dropdown never touch activeFilter, so this cannot fight with the user
+        // moving between rows.
+        const index = indexOfFilter(categoryEntries, activeFilter);
         if (index >= 0) {
-            setRailFocusedIndex(index);
+            setDropdownIndex(index);
         }
     }, [activeFilter, channelTags]);
 
@@ -801,17 +865,22 @@ const ChannelList = (props: {
             onClick={handleClick}
             className="channelList"
         >
-            <FilterRail
-                entries={railEntries}
+            <CategoryBar
+                categoryEntries={categoryEntries}
                 activeFilter={activeFilter}
-                focusedIndex={railFocusedIndex}
-                isFocused={state === State.RAIL}
-                onSelect={selectRailEntry}
+                focusedControl={state === State.BAR ? barControl : undefined}
+                isDropdownOpen={state === State.DROPDOWN}
+                dropdownIndex={dropdownIndex}
+                onSelectFavorites={() => applyFilter(FAVORITE_CHANNELS)}
+                onOpenDropdown={() => (state === State.DROPDOWN ? setState(State.NORMAL) : openDropdown())}
+                onSelectCategory={selectCategoryAt}
             />
 
             {epgData.isFilterEmpty() && (
                 <div className="channelListEmptyBanner" onClick={(event) => event.stopPropagation()}>
-                    No favorites yet &mdash; hold OK on a channel to add it
+                    {activeFilter.kind === 'favorites'
+                        ? 'No favorites yet — hold OK on a channel to add it'
+                        : 'No channels in ' + labelForFilter(categoryEntries, activeFilter)}
                 </div>
             )}
 
