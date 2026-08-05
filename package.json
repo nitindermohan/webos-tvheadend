@@ -1,56 +1,59 @@
 {
-    "name": "webos-tvheadend",
-    "version": "1.1.0",
-    "private": true,
-    "homepage": "./",
-    "dependencies": {
-        "@enact/moonstone": "^4.5.6",
-        "@procot/webostv": "git+https://github.com/procot/webostv.git",
-        "react": "^18.3.1",
-        "react-dom": "^18.3.1",
-        "react-scripts": "5.0.1"
-    },
-    "scripts": {
-        "start": "react-scripts start",
-        "build": "react-scripts build",
-        "test": "react-scripts test",
-        "eject": "react-scripts eject",
-        "webos:emu": "npm run build && ares-package build service && ares-install com.tvh.app_${npm_package_version}_all.ipk -d emulator && ares-launch com.tvh.app -d emulator",
-        "webos:emu-rm": "ares-install -d emulator --remove com.tvh.app",
-        "webos:tv": "npm run build && ares-package build service && ares-install com.tvh.app_${npm_package_version}_all.ipk -d tv && ares-launch com.tvh.app -d tv",
-        "webos:tv-rm": "ares-install -d tv --remove com.tvh.app",
-        "inspect:emu": "ares-inspect -d emulator com.tvh.app --open",
-        "inspect:tv": "ares-inspect -d tv com.tvh.app --open"
-    },
-    "eslintConfig": {
-        "extends": [
-            "react-app"
-        ],
-        "rules": {
-            "@typescript-eslint/no-explicit-any": ["off"]
-        }
-    },
-    "browserslist": {
-        "production": [
-            "chrome >= 87"
-        ],
-        "development": [
-            "last 1 chrome version",
-            "last 1 firefox version",
-            "last 1 safari version"
-        ]
-    },
-    "devDependencies": {
-        "@babel/plugin-transform-private-property-in-object": "^7.22.11",
-        "@types/jest": "^27.5.2",
-        "@types/react": "^18.2.21",
-        "@types/react-dom": "^18.2.7",
-        "@typescript-eslint/eslint-plugin": "^6.7.0",
-        "@typescript-eslint/parser": "^6.7.0",
-        "eslint-config-prettier": "^9.0.0",
-        "eslint-plugin-prettier": "^5.0.0",
-        "eslint-plugin-react": "^7.33.2",
-        "eslint-plugin-react-hooks": "^5.0.0-canary-bbc8530ed-20230912",
-        "prettier": "^3.0.3"
+  "name": "webos-tvheadend",
+  "version": "1.1.0",
+  "private": true,
+  "homepage": "./",
+  "dependencies": {
+    "@enact/moonstone": "^4.5.6",
+    "@procot/webostv": "git+https://github.com/procot/webostv.git",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-scripts": "5.0.1"
+  },
+  "scripts": {
+    "start": "react-scripts start",
+    "start:mock": "REACT_APP_USE_MOCKS=true react-scripts start",
+    "build": "react-scripts build",
+    "test": "react-scripts test",
+    "eject": "react-scripts eject",
+    "webos:emu": "npm run build && ares-package build service && ares-install com.tvh.app_${npm_package_version}_all.ipk -d emulator && ares-launch com.tvh.app -d emulator",
+    "webos:emu-rm": "ares-install -d emulator --remove com.tvh.app",
+    "webos:tv": "npm run build && ares-package build service && ares-install com.tvh.app_${npm_package_version}_all.ipk -d tv && ares-launch com.tvh.app -d tv",
+    "webos:tv-rm": "ares-install -d tv --remove com.tvh.app",
+    "inspect:emu": "ares-inspect -d emulator com.tvh.app --open",
+    "inspect:tv": "ares-inspect -d tv com.tvh.app --open"
+  },
+  "eslintConfig": {
+    "extends": [
+      "react-app"
+    ],
+    "rules": {
+      "@typescript-eslint/no-explicit-any": [
+        "off"
+      ]
     }
+  },
+  "browserslist": {
+    "production": [
+      "chrome >= 87"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  },
+  "devDependencies": {
+    "@babel/plugin-transform-private-property-in-object": "^7.22.11",
+    "@types/jest": "^27.5.2",
+    "@types/react": "^18.2.21",
+    "@types/react-dom": "^18.2.7",
+    "@typescript-eslint/eslint-plugin": "^6.7.0",
+    "@typescript-eslint/parser": "^6.7.0",
+    "eslint-config-prettier": "^9.0.0",
+    "eslint-plugin-prettier": "^5.0.0",
+    "eslint-plugin-react": "^7.33.2",
+    "eslint-plugin-react-hooks": "^5.0.0-canary-bbc8530ed-20230912",
+    "prettier": "^3.0.3"
+  }
 }
