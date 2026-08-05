@@ -30,7 +30,7 @@ const RecordingList = (props: {
     unmount: () => void;
     recordings: EPGChannelRecording[];
 }) => {
-    const { imageCache, logoVersion, currentRecordingPosition, setCurrentRecordingPosition, isAnimationsEnabled } = useContext(
+    const { imageCache, logoVersion, fontVersion, currentRecordingPosition, setCurrentRecordingPosition, isAnimationsEnabled } = useContext(
         AppContext
     );
 
@@ -508,7 +508,7 @@ const RecordingList = (props: {
         // logos load on demand; without this the list only repaints when the
         // recordings reload, so a logo arriving would never be drawn
         updateCanvas();
-    }, [logoVersion]);
+    }, [logoVersion, fontVersion]);
 
     useEffect(() => {
         recalculateAndRedraw(false);

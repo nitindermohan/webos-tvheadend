@@ -42,6 +42,7 @@ const ChannelList = (props: {
         epgData,
         imageCache,
         logoVersion,
+        fontVersion,
         currentChannelPosition,
         setCurrentChannelPosition,
         isAnimationsEnabled,
@@ -839,7 +840,7 @@ const ChannelList = (props: {
         // logos load on demand now, so a row can be drawn before its logo
         // exists; LogoCache bumps logoVersion (coalesced) when one arrives
         updateCanvas();
-    }, [logoVersion]);
+    }, [logoVersion, fontVersion]);
 
     useEffect(() => {
         // activeFilter can change from outside this component (the background

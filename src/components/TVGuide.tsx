@@ -36,6 +36,7 @@ const TVGuide = (props: {
         epgData,
         imageCache,
         logoVersion,
+        fontVersion,
         setCurrentChannelPosition,
         channelTags,
         activeFilter,
@@ -364,7 +365,7 @@ const TVGuide = (props: {
         drect.right = getWidth() - 10;
         drect.top += (mDetailsLayoutTitleTextSize + mDetailsLayoutPadding) * 2 + 3;
         // draw title, description etc
-        canvas.font = mDetailsLayoutDescriptionTextSize + 'px Moonstone';
+        canvas.font = mDetailsLayoutDescriptionTextSize + 'px ' + CanvasUtils.DEFAULT_FONT_FACE;
         canvas.fillStyle = mDetailsLayoutTextColor;
         CanvasUtils.wrapText(canvas, description, drect.left, drect.top, drect.width, mDetailsLayoutTitleTextSize + 5);
     };
@@ -594,7 +595,7 @@ const TVGuide = (props: {
             maxWidth: drawingRect.width
         });
         // if (event.getSubTitle()) {
-        //     canvas.font = this.mEventLayoutTextSize - 6 + "px Moonstone";
+        //     canvas.font = this.mEventLayoutTextSize - 6 + "px " + CanvasUtils.DEFAULT_FONT_FACE;
         //     canvas.fillText(this.canvasUtils.getShortenedText(canvas, event.getSubTitle(), drawingRect), drawingRect.left, drawingRect.top + 18);
         // }
     };
@@ -633,7 +634,7 @@ const TVGuide = (props: {
  
         drawingRect.top += (((drawingRect.bottom - drawingRect.top) / 2) + (10/2));
  
-        canvas.font = "bold " + mEventLayoutTextSize+"px Moonstone";
+        canvas.font = "bold " + mEventLayoutTextSize + "px " + CanvasUtils.DEFAULT_FONT_FACE;
         let channelName = epgData.getChannel(position).getName();
         let channelNumber = epgData.getChannel(position).getId();
         //canvas.fillText(channelNumber, drawingRect.left, drawingRect.top);
@@ -647,7 +648,7 @@ const TVGuide = (props: {
         drawingRect.bottom = drawingRect.top + mChannelLayoutHeight;
 
         /*
-                canvas.font = mEventLayoutTextSize + "px Moonstone";
+                canvas.font = mEventLayoutTextSize + "px " + CanvasUtils.DEFAULT_FONT_FACE;
                 canvas.fillStyle = mEventLayoutTextColor;
                 canvas.textAlign = 'right';
                 canvas.fillText(epgData.getChannel(position).getChannelID(),
@@ -675,7 +676,7 @@ const TVGuide = (props: {
             scaled && canvas.drawImage(scaled, drawingRect.left, drawingRect.top);
         } else {
             canvas.textAlign = 'center';
-            canvas.font = 'bold 17px Moonstone';
+            canvas.font = 'bold 17px ' + CanvasUtils.DEFAULT_FONT_FACE;
             canvas.fillStyle = mEventLayoutTextColor;
             CanvasUtils.wrapText(
                 canvas,
@@ -1054,7 +1055,7 @@ const TVGuide = (props: {
     useEffect(() => {
         // logos load on demand now - repaint when one arrives
         updateCanvas();
-    }, [logoVersion]);
+    }, [logoVersion, fontVersion]);
 
     useEffect(() => {
         // The lineup underneath us just changed size and order. Every position

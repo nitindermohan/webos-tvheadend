@@ -6,7 +6,7 @@ import AppContext from '../AppContext';
 import '../styles/app.css';
 
 const ChannelInfo = (props: { unmount: () => void }) => {
-    const { locale, epgData, imageCache, logoVersion, currentChannelPosition } = useContext(AppContext);
+    const { locale, epgData, imageCache, logoVersion, fontVersion, currentChannelPosition } = useContext(AppContext);
 
     const canvas = useRef<HTMLCanvasElement>(null);
     const infoWrapper = useRef<HTMLDivElement>(null);
@@ -119,7 +119,7 @@ const ChannelInfo = (props: { unmount: () => void }) => {
         drawingRect.left += drawingRect.right + 20;
         drawingRect.right = getWidth();
         drawingRect.top = getHeight() / 2 - mChannelInfoTitleSize + mChannelInfoTitleSize / 2 + mChannelLayoutPadding;
-        canvas.font = 'bold ' + mChannelInfoTitleSize + 'px Moonstone';
+        canvas.font = 'bold ' + mChannelInfoTitleSize + 'px ' + CanvasUtils.DEFAULT_FONT_FACE;
         canvas.textAlign = 'left';
         let currentEvent, nextEvent;
 
@@ -167,7 +167,7 @@ const ChannelInfo = (props: { unmount: () => void }) => {
             canvas.textAlign = 'left';
 
             // draw subtitle event
-            canvas.font = mChannelInfoTitleSize - 8 + 'px Moonstone';
+            canvas.font = mChannelInfoTitleSize - 8 + 'px ' + CanvasUtils.DEFAULT_FONT_FACE;
             drawingRect.top += mChannelInfoTitleSize - 5 + mChannelLayoutPadding;
             if (currentEvent.getSubTitle() !== undefined) {
                 drawingRect.left = left;
@@ -186,7 +186,7 @@ const ChannelInfo = (props: { unmount: () => void }) => {
             const remainingTime = Math.ceil((currentEvent.getEnd() - EPGUtils.getNow()) / 1000 / 60);
             drawingRect.left = drawingRect.right - mChannelLayoutPadding - 20;
             canvas.textAlign = 'right';
-            canvas.font = mChannelInfoTitleSize - 8 + 'px Moonstone';
+            canvas.font = mChannelInfoTitleSize - 8 + 'px ' + CanvasUtils.DEFAULT_FONT_FACE;
             canvas.fillStyle = mChannelLayoutTitleTextColor;
             canvas.fillText(runningTime + ' (+' + remainingTime + ')', drawingRect.left, drawingRect.top);
 
@@ -200,7 +200,7 @@ const ChannelInfo = (props: { unmount: () => void }) => {
 
             // needs to be set for measurement
             if (nextEvent !== undefined) {
-                canvas.font = mChannelInfoTitleSize - 18 + 'px Moonstone';
+                canvas.font = mChannelInfoTitleSize - 18 + 'px ' + CanvasUtils.DEFAULT_FONT_FACE;
                 const titleMetrics = canvas.measureText(nextEvent.getTitle());
                 const titleLength =
                     titleMetrics.width > mChannelNextTitleMaxLength ? mChannelNextTitleMaxLength : titleMetrics.width;
@@ -221,7 +221,7 @@ const ChannelInfo = (props: { unmount: () => void }) => {
 
             // draw color keys description
             drawingRect.top -= mChannelInfoKeyDescSize / 2;
-            canvas.font = mChannelInfoKeyDescSize + 'px Moonstone';
+            canvas.font = mChannelInfoKeyDescSize + 'px ' + CanvasUtils.DEFAULT_FONT_FACE;
             canvas.textAlign = 'left';
 
             // red
@@ -360,7 +360,7 @@ const ChannelInfo = (props: { unmount: () => void }) => {
         // logos load on demand; repaint as soon as one arrives rather than
         // waiting up to 500ms for the live-countdown interval to come round
         updateCanvas();
-    }, [logoVersion]);
+    }, [logoVersion, fontVersion]);
 
     const focus = () => {
         infoWrapper.current?.focus();

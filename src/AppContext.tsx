@@ -7,6 +7,7 @@ import ChannelTag from './models/ChannelTag';
 import ChannelFilter from './models/ChannelFilter';
 import CategoryStore from './utils/CategoryStore';
 import FavoritesStore from './utils/FavoritesStore';
+import { whenFontsReady } from './utils/FontReadiness';
 
 export enum AppVisibilityState {
     FOCUSED = 'focused',
@@ -28,6 +29,13 @@ type AppContext = {
     imageCache: LogoCache;
     /** Bumped when logos finish loading, so canvas surfaces repaint. */
     logoVersion: number;
+    /**
+     * Bumped once the bundled webfont is ready. Canvas does not participate in
+     * CSS font loading, so without this every surface would keep whatever it
+     * drew during startup - in the fallback font, measured against the wrong
+     * metrics. See FontReadiness.
+     */
+    fontVersion: number;
     currentChannelPosition: number;
     setCurrentChannelPosition: (value: number) => void;
     currentRecordingPosition: number;
@@ -64,6 +72,19 @@ export const AppContextProvider = ({ children }: { children: JSX.Element }) => {
     useEffect(() => {
         imageCache.onReady(() => setLogoVersion((version) => version + 1));
     }, [imageCache]);
+
+    const [fontVersion, setFontVersion] = useState(0);
+
+    // Same shape as logoVersion, for the same reason: a canvas surface can
+    // paint before the resource it needs exists, and nothing else will tell it
+    // to try again. whenFontsReady flushes CanvasUtils' memoised character
+    // widths before this fires, so the repaint measures against the real font
+    // rather than reusing numbers taken from the fallback.
+    useEffect(() => {
+        whenFontsReady(typeof document !== 'undefined' ? document.fonts : undefined, () =>
+            setFontVersion((version) => version + 1)
+        );
+    }, []);
     const [currentChannelPosition, setCurrentChannelPositionState] = useState(0);
     // Callers of setActiveFilter can be several renders removed from the one
     // that produced their closure (App.tsx's reloadData is captured once by a
@@ -97,6 +118,7 @@ export const AppContextProvider = ({ children }: { children: JSX.Element }) => {
         epgData: epgData,
         imageCache: imageCache,
         logoVersion: logoVersion,
+        fontVersion: fontVersion,
         currentChannelPosition: currentChannelPosition,
         setCurrentChannelPosition: (value: number) => setCurrentChannelPosition(value),
         currentRecordingPosition: currentRecordingPosition,

@@ -1,5 +1,24 @@
+/* The app declared no font-family at all until 2026-08-06, so every glyph
+   resolved against whatever webOS happened to fall back to. That was invisible
+   until a missing glyph made it visible - the category caret drew as a .notdef
+   box on a real C5 (ee48c60). Inter is bundled in the ipk, so both metrics and
+   coverage are ours now. Keep this in step with
+   CanvasUtils.DEFAULT_FONT_FACE: the canvas half of the UI cannot read this
+   rule and names the family itself. */
 body {
     background-color: #000000;
+    font-family: 'Inter', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif;
+}
+
+/* Channel numbers and clock times sit in columns and must not jitter as the
+   digits change. Canvas has no equivalent - ctx.font carries no feature
+   settings in Chromium 87 - but its figures are in a fixed right-aligned
+   column, so the difference does not show. */
+.categoryCount,
+.channelListDetails .listItemTime,
+.channelListDetails .now,
+.channelListDetails .timeframe {
+    font-variant-numeric: tabular-nums;
 }
 
 .app {

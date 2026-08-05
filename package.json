@@ -5,6 +5,7 @@
   "homepage": "./",
   "dependencies": {
     "@enact/moonstone": "^4.5.6",
+    "@fontsource/inter": "^5.3.0",
     "@procot/webostv": "git+https://github.com/procot/webostv.git",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",

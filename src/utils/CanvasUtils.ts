@@ -14,6 +14,23 @@ export default class CanvasUtils {
     static MEASURE_STRING = 'One interesting Measure String';
 
     /**
+     * The family every canvas surface draws with, and the one FontReadiness
+     * preloads.
+     *
+     * This used to be the literal 'Moonstone' - an Enact *theme* name, not a
+     * family the app ever shipped, so what actually got drawn was whatever
+     * webOS fell back to. That was invisible until a missing glyph made it
+     * visible: the category caret rendered as a .notdef box on a real C5
+     * (fixed in ee48c60). Inter is bundled in the ipk, so both the metrics
+     * and the glyph coverage are now ours rather than the TV's.
+     *
+     * The fallbacks after it matter for one case: a channel name in a script
+     * outside Inter's latin/latin-ext subsets. Chromium falls back per glyph,
+     * so such a name renders in the system font rather than as boxes.
+     */
+    static DEFAULT_FONT_FACE = 'Inter';
+
+    /**
      * Memoised per font. The approximation depends only on the font, but it was
      * being recomputed inside getShortenedText - so every truncated label cost
      * two measureText calls (the probe string and the text itself) on every
@@ -125,7 +142,7 @@ export default class CanvasUtils {
         options: WriteTextOptions = {}
     ) {
         // set default options
-        options.fontFace = options.fontFace || 'Moonstone';
+        options.fontFace = options.fontFace || CanvasUtils.DEFAULT_FONT_FACE;
         options.textAlign = options.textAlign || 'left';
         options.textBaseline = options.textBaseline || 'middle';
         options.fillStyle = options.fillStyle || '#cccccc';
