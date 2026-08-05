@@ -2,6 +2,12 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> **SUPERSEDED 2026-08-06** by
+> `2026-08-06-tivimate-ui-redesign.md`, which folds this in as its Phase 0 and
+> adds the TiviMate two-column layout, responsiveness, densities and appearance
+> settings. Work from that plan, not this one. This file is kept because its
+> measured inventory and its canvas-font-race analysis are quoted there.
+
 **Status: not started.** Paused by the user on 2026-08-05 immediately after the
 direction was chosen and the colour inventory taken. Nothing below has been
 built. The glyph fix that prompted this work is already shipped (`ee48c60`) and
