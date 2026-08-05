@@ -14,10 +14,35 @@ export default class CanvasUtils {
     static MEASURE_STRING = 'One interesting Measure String';
 
     /**
+     * Memoised per font. The approximation depends only on the font, but it was
+     * being recomputed inside getShortenedText - so every truncated label cost
+     * two measureText calls (the probe string and the text itself) on every
+     * animation frame. measureText is one of the more expensive canvas calls on
+     * a TV SoC, and the channel list and EPG both truncate on every visible row.
+     *
+     * Keyed on canvas.font, so switching font size or family measures once more
+     * and then reuses that. The set of fonts this app draws with is tiny and
+     * fixed, so the map cannot grow unbounded.
+     */
+    private static widthPerCharacterByFont: { [font: string]: number } = {};
+
+    /**
      * Return character width approximation of current font
      */
     static getWidthPerCharacter(canvas: CanvasRenderingContext2D) {
-        return canvas.measureText(CanvasUtils.MEASURE_STRING).width / CanvasUtils.MEASURE_STRING.length;
+        const font = canvas.font;
+        const cached = CanvasUtils.widthPerCharacterByFont[font];
+        if (cached !== undefined) {
+            return cached;
+        }
+        const width = canvas.measureText(CanvasUtils.MEASURE_STRING).width / CanvasUtils.MEASURE_STRING.length;
+        CanvasUtils.widthPerCharacterByFont[font] = width;
+        return width;
+    }
+
+    /** Test seam: drop the memoised font measurements. */
+    static clearFontMetricsCache() {
+        CanvasUtils.widthPerCharacterByFont = {};
     }
 
     /**

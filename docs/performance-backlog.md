@@ -9,8 +9,14 @@ logo URL, and **87,890 EPG events - about 113 per channel**), not estimated.
 | Change | Result |
 |---|---|
 | Retarget build to `chrome >= 87`, drop `core-js` / `regenerator-runtime` (`0b32b42`) | 267.3 kB -> **212.9 kB** gzipped (-20%); raw 1,075,270 -> 897,577 B; ships native ES2020 instead of transpiled ES5 |
+| **1. EPG early exit** - `visibleEvents()` in `src/utils/EventWindow.ts`, 7 tests | ~1350 visibility checks per frame -> ~30. The walk now stops at the first event past the window, as the original comment always claimed it did. |
+| **2. Font metrics memoised** - `CanvasUtils.getWidthPerCharacter`, 4 tests | 2 `measureText` calls per truncated label per frame -> 1 per distinct font, ever. |
+| **3. Favorites lookup** - `FavoritesStore`, 5 tests | ~720 `localStorage` reads + `JSON.parse` + O(n) `indexOf` per second while scrolling -> one cheap `getItem` and string compare, with an O(1) map. |
 
-## 1. EPG draws every event, every frame (bug, not just slowness)
+Each of 1-3 was mutation-tested: reintroducing the original defect fails the
+test written for it, so none of them pass vacuously.
+
+## ~~1. EPG draws every event, every frame~~ (done)
 
 `TVGuide.tsx:508-519`:
 
@@ -37,7 +43,7 @@ Fix: a plain `for` loop with `break`, or `some()`. Extract `isEventVisible`
 plus the loop bound into a tested pure helper, the way `ChannelListGeometry`
 and `StreamIdentity` already are.
 
-## 2. Two `measureText` calls per label per frame
+## ~~2. Two `measureText` calls per label per frame~~ (done)
 
 `CanvasUtils.getShortenedText` calls `getWidthPerCharacter(canvas)`, which
 measures a 30-character probe string, and then measures the real text as well.
@@ -47,7 +53,7 @@ The per-character width depends only on the current font, so it is a constant
 being recomputed thousands of times a second. Cache it keyed on
 `canvas.font`. Halves the text cost of every canvas surface at a stroke.
 
-## 3. `FavoritesStore.has()` hits localStorage inside the draw loop
+## ~~3. `FavoritesStore.has()` hits localStorage inside the draw loop~~ (done)
 
 `ChannelList.tsx:336` calls `FavoritesStore.has()` per row, inside
 `drawChannelItem` -> `drawChannelListItems` -> the `requestAnimationFrame`
@@ -90,10 +96,10 @@ serves it locally from `/imagecache/<id>` instead of every TV hitting the
 original external URLs - removing a DNS lookup and TLS handshake per logo.
 Costs nothing in the app and helps item 5 considerably.
 
-## Suggested order
+## Remaining: suggested order
 
-1-3 are pure logic, unit-testable without the TV, and low risk. 4-5 change
-visible behaviour and want checking on the C5.
+Items 1-3 are done. 4-5 remain, and both change
+visible behaviour, so both want checking on the C5.
 
 ## Related
 

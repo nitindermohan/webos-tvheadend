@@ -1,11 +1,11 @@
 /**
- * Reads a JSON-encoded array of strings from localStorage, degrading
- * gracefully to an empty array on any missing, corrupt, or malformed data
- * rather than throwing. Shared by FavoritesStore and CategoryStore so the
- * parsing/validation rule lives in exactly one place.
+ * Parses a JSON-encoded array of strings, degrading gracefully to an empty
+ * array on any corrupt or malformed data rather than throwing.
+ *
+ * Split out from readStoredStringArray so a caller that already holds the raw
+ * string can parse it without a second localStorage read.
  */
-export const readStoredStringArray = (key: string): string[] => {
-    const raw = localStorage.getItem(key);
+export const parseStoredStringArray = (raw: string | null, key: string): string[] => {
     if (!raw) {
         return [];
     }
@@ -20,3 +20,12 @@ export const readStoredStringArray = (key: string): string[] => {
         return [];
     }
 };
+
+/**
+ * Reads a JSON-encoded array of strings from localStorage, degrading
+ * gracefully to an empty array on any missing, corrupt, or malformed data
+ * rather than throwing. Shared by FavoritesStore and CategoryStore so the
+ * parsing/validation rule lives in exactly one place.
+ */
+export const readStoredStringArray = (key: string): string[] =>
+    parseStoredStringArray(localStorage.getItem(key), key);

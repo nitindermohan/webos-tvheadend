@@ -61,3 +61,57 @@ describe('FavoritesStore', () => {
         expect(FavoritesStore.all()).toEqual(['uuid-a']);
     });
 });
+
+describe('FavoritesStore caching', () => {
+    // has() runs once per visible row inside the rAF draw loop, so it is
+    // memoised. The cache is keyed on the raw stored string; these pin the
+    // cases where that could go stale.
+    it('sees a write made directly to localStorage, bypassing the store', () => {
+        FavoritesStore.add('uuid-a');
+        expect(FavoritesStore.has('uuid-a')).toBe(true);
+
+        localStorage.setItem('favoriteChannels', JSON.stringify(['uuid-b']));
+
+        expect(FavoritesStore.has('uuid-a')).toBe(false);
+        expect(FavoritesStore.has('uuid-b')).toBe(true);
+    });
+
+    it('sees localStorage being cleared', () => {
+        FavoritesStore.add('uuid-a');
+        expect(FavoritesStore.has('uuid-a')).toBe(true);
+
+        localStorage.clear();
+
+        expect(FavoritesStore.has('uuid-a')).toBe(false);
+        expect(FavoritesStore.count()).toBe(0);
+    });
+
+    it('does not let a caller mutate the cache through all()', () => {
+        FavoritesStore.add('uuid-a');
+
+        const handedOut = FavoritesStore.all();
+        handedOut.push('uuid-injected');
+
+        expect(FavoritesStore.has('uuid-injected')).toBe(false);
+        expect(FavoritesStore.all()).toEqual(['uuid-a']);
+    });
+
+    it('keeps add and remove correct across repeated calls', () => {
+        FavoritesStore.add('uuid-a');
+        FavoritesStore.add('uuid-b');
+        FavoritesStore.add('uuid-a');
+        expect(FavoritesStore.all()).toEqual(['uuid-a', 'uuid-b']);
+
+        FavoritesStore.remove('uuid-a');
+        expect(FavoritesStore.has('uuid-a')).toBe(false);
+        expect(FavoritesStore.has('uuid-b')).toBe(true);
+        expect(FavoritesStore.all()).toEqual(['uuid-b']);
+    });
+
+    it('still degrades to empty on corrupt stored data', () => {
+        FavoritesStore.add('uuid-a');
+        localStorage.setItem('favoriteChannels', 'not json');
+        expect(FavoritesStore.has('uuid-a')).toBe(false);
+        expect(FavoritesStore.all()).toEqual([]);
+    });
+});

@@ -9,6 +9,7 @@ import CanvasUtils from '../utils/CanvasUtils';
 import EPGEvent from '../models/EPGEvent';
 import AppContext from '../AppContext';
 import RemoteKeys from '../utils/RemoteKeys';
+import { visibleEvents } from '../utils/EventWindow';
 import DialogPopup from './DialogPopup';
 import '../styles/app.css';
 
@@ -504,19 +505,16 @@ const TVGuide = (props: {
             canvas.lineTo(getWidth(), getTopFrom(pos));
             canvas.stroke();
 
-            const epgEvents = epgData.getEvents(pos);
-            let wasVisible = false;
-            //  the list is ordered by time so its only a few events processed
-            epgEvents.forEach((event) => {
-                const isVisible = isEventVisible(event.getStart(), event.getEnd());
-                if (isVisible) {
-                    wasVisible = true;
-                    drawEvent(canvas, pos, event, drawingRect);
-                }
-                if (wasVisible && !isVisible) {
-                    return;
-                }
-            });
+            // The list is ordered by time, so the walk stops at the first event
+            // past the window. This used to be a forEach with a `return`, which
+            // only skips one item - so every event of every visible channel was
+            // checked on every animation frame.
+            const epgEvents = visibleEvents(epgData.getEvents(pos), (event) =>
+                isEventVisible(event.getStart(), event.getEnd())
+            );
+            for (let i = 0; i < epgEvents.length; i++) {
+                drawEvent(canvas, pos, epgEvents[i], drawingRect);
+            }
         }
         canvas.globalAlpha = 1;
     };

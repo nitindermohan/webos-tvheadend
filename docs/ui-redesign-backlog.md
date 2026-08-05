@@ -73,18 +73,35 @@ height, or that height must be measured and fed to both consumers. Getting this
 wrong puts the drawn rows and the click targets out of step - a worse bug than
 the one being fixed.
 
-**Open design questions, to settle before building:**
+**Settled (user, 2026-08-05):**
 
-- Opening the channel list with right-arrow: does focus land on the category
-  control or on the channel list?
-- Does `★ Favorites` stay a always-visible one-press control, or move inside
-  the dropdown with everything else?
-- Does the dropdown reopen on the last-used category, and is the playing
-  channel's category indicated?
-- Key budget is tight: left/right already drive the details panel from the
-  channel list (`ChannelList.tsx:520-541`). Which key opens the dropdown, and
-  what closes it?
-- Does the same treatment apply to the EPG, which has its own channel column?
+- **Focus on open lands on the channel list**, not the category control.
+  Right-arrow from live TV behaves as it does today; up/down move through
+  channels immediately, with no extra keypress to get into the list.
+- **`★ Favorites` stays a one-press control**, kept separate from the category
+  list rather than being one entry among many - favourites first, all other
+  categories below it.
+- **The dropdown opens on the filter the playing channel was chosen through.**
+  Not simply "last used": if the channel was picked from a category, that
+  category opens; from All, All opens; from Favorites, Favorites opens. This
+  needs the active filter recording as *provenance* at the moment a channel is
+  selected, alongside the existing `activeFilter` - the two can diverge, since
+  the user can change filter without zapping.
+- **The dropdown belongs to the channel list only**, and renders to the side
+  within it. Up/down still walk the channel list; the dropdown opens from the
+  category control rather than stealing a direction key from the list.
+- **The EPG is out of scope.** It keeps its own channel column and stays
+  reachable from the menu (left button).
+
+**Still open:**
+
+- Exactly which control and keypress opens the dropdown. "Up into the category
+  control, then OK" matches how the rail behaves today and costs no new key,
+  but it should be confirmed against the real remote before building.
+- Whether the side dropdown overlays the channel rows or shifts them, which
+  decides whether `mFilterRailHeight` stays a fixed constant (see above).
+- Where the favourites control physically sits: its own box beside the
+  categories, or a pinned first row above them.
 
 ### Make the lists scrollable by pointer
 
