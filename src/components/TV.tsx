@@ -16,14 +16,10 @@ import RemoteKeys from '../utils/RemoteKeys';
 import { ALL_CHANNELS } from '../models/ChannelFilter';
 import HoldGesture from '../utils/HoldGesture';
 import { shouldSwitchStream } from '../utils/StreamIdentity';
+import { State } from '../models/TVState';
+import { nextStateOnBack } from '../utils/BackNavigation';
 
-export enum State {
-    TV = 'tv',
-    EPG = 'epg',
-    CHANNEL_LIST = 'channleList',
-    CHANNEL_INFO = 'channelInfo',
-    CHANNEL_SETTINGS = 'channelSettings'
-}
+export { State };
 
 const TV = () => {
     const {
@@ -170,7 +166,9 @@ const TV = () => {
             }
             case RemoteKeys.BACK:
                 event.stopPropagation();
-                setState(State.TV);
+                // dismisses whatever is open, and from plain watching opens the
+                // guide - which was otherwise only reachable via GUIDE/BLUE
+                setState(nextStateOnBack(state));
                 break;
             default:
                 console.log('TV-keyPressed:', keyCode);
