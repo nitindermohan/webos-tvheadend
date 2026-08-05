@@ -5,6 +5,7 @@ import AppContext from '../AppContext';
 import ChannelListDetails from './ChannelListDetails';
 import EPGEvent from '../models/EPGEvent';
 import '../styles/app.css';
+import { getTheme, withAlpha } from '../utils/Theme';
 import DialogPopup from './DialogPopup';
 import EPGChannelRecording from '../models/EPGChannelRecording';
 import EPGUtils from '../utils/EPGUtils';
@@ -43,13 +44,15 @@ const RecordingList = (props: {
     const mChannelLayoutTextSize = 32;
     const mChannelLayoutEventTextSize = 26;
     const mChannelLayoutNumberTextSize = 38;
-    const mChannelLayoutTextColor = '#cccccc';
-    const mChannelLayoutTitleTextColor = '#969696';
+    const mChannelLayoutTextColor = getTheme().textPrimary;
+    const mChannelLayoutTitleTextColor = getTheme().textSecondary;
     const mChannelLayoutMargin = 3;
     const mChannelLayoutPadding = 7;
     const mChannelLayoutHeight = 90;
     const mChannelLayoutWidth = 900;
-    const mChannelLayoutBackgroundFocus = 'rgba(29,170,226,1)';
+    // same treatment as the channel list: a card fill plus an accent bar,
+    // rather than flooding the row and leaving its text hard to read
+    const mChannelLayoutBackgroundFocus = withAlpha(getTheme().surfaceCard, 0.96);
 
     const [state, setState] = useState<State>(State.DETAILS);
     const [detailsState, setDetailsState] = useState<DetailsState>();
@@ -138,10 +141,10 @@ const RecordingList = (props: {
             drawingRect.bottom
         );
         // Important bit here is to use rgba()
-        grd.addColorStop(0, 'rgba(11, 39, 58, 0.7)');
-        grd.addColorStop(0.2, 'rgba(35, 64, 84, 0.9)');
-        grd.addColorStop(0.8, 'rgba(35, 64, 84, 0.9)');
-        grd.addColorStop(1, 'rgba(11, 39, 58, 0.7)');
+        grd.addColorStop(0, withAlpha(getTheme().surfaceRaised, 0.75));
+        grd.addColorStop(0.2, withAlpha(getTheme().surfaceRaised, 0.92));
+        grd.addColorStop(0.8, withAlpha(getTheme().surfaceRaised, 0.92));
+        grd.addColorStop(1, withAlpha(getTheme().surfaceRaised, 0.75));
 
         // Fill with gradient
         canvas.fillStyle = grd;
@@ -203,10 +206,10 @@ const RecordingList = (props: {
         let fillStyle = mChannelLayoutTextColor;
         switch (channel.getKind()) {
             case 'REC_FAILED':
-                fillStyle = '#EF3343';
+                fillStyle = getTheme().danger;
                 break;
             case 'REC_UPCOMING':
-                fillStyle = '#555555';
+                fillStyle = getTheme().textMuted;
                 break;
         }
 
@@ -215,7 +218,7 @@ const RecordingList = (props: {
             // recording mark
             if (currentEvent && channel.getKind() === 'REC_UPCOMING' && currentEvent.getStart() < EPGUtils.getNow()) {
                 const radius = 10;
-                canvas.fillStyle = '#FF0000';
+                canvas.fillStyle = getTheme().danger;
                 canvas.beginPath();
                 canvas.arc(drawingRect.left + 90 + radius, drawingRect.middle - radius, radius, 0, 2 * Math.PI);
                 canvas.fill();

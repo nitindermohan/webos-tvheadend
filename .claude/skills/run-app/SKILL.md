@@ -94,6 +94,12 @@ The fixtures carry **absolute URLs to the original author's server**
   or intercepted requests serving placeholder images.
 - **No video.** The stream URL fails, so the player shows a spinner and the
   app logs `Network not available`. Expected; not a bug.
+- **The EPG grid is empty.** `epg.json`'s 1000 events are all dated
+  **8-9 December 2020**, so nothing overlaps "now" and no programme blocks
+  are drawn. The grid, time bar, now-line, past shading and channel column
+  all render fine - only the event rectangles are missing. Do not read an
+  empty guide as a regression. To exercise event rendering, either shift the
+  fixture timestamps forward or fake the clock.
 - Console errors are dominated by these. Filter them out before reading the
   console for anything real.
 

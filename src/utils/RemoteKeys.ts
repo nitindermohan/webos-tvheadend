@@ -38,4 +38,26 @@ const RemoteKeys = Object.freeze({
     KEY_Y: 89
 } as const);
 
+/**
+ * The physical colours of the legacy remote's colour buttons, for the legend
+ * the info bar draws.
+ *
+ * Deliberately *not* theme roles, and deliberately exempt from ThemeGuards.
+ * These identify hardware: a red button is red on every TV and in every
+ * theme, and routing them through the palette would let a theme switch
+ * relabel the buttons - a legend that no longer matches the remote in the
+ * user's hand is worse than one that clashes slightly with the surface.
+ *
+ * Note the legend is drawn unconditionally, while modern Magic Remotes have
+ * no colour buttons at all (see the file header). Recorded in
+ * docs/ui-redesign-backlog.md; not changed here, because what to draw instead
+ * is a behaviour decision rather than a colour one.
+ */
+export const REMOTE_KEY_COLORS = Object.freeze({
+    RED: '#EF3343',
+    GREEN: '#46BB3E',
+    YELLOW: '#FBC821',
+    BLUE: '#4065B8'
+} as const);
+
 export default RemoteKeys;

@@ -6,6 +6,7 @@ import React, { useContext, useEffect, useRef, useState } from 'react';
 import Rect from '../models/Rect';
 import EPGUtils from '../utils/EPGUtils';
 import CanvasUtils from '../utils/CanvasUtils';
+import { getTheme, withAlpha } from '../utils/Theme';
 import EPGEvent from '../models/EPGEvent';
 import AppContext from '../AppContext';
 import RemoteKeys from '../utils/RemoteKeys';
@@ -71,35 +72,43 @@ const TVGuide = (props: {
     const mDrawingRect = new Rect();
     const mMeasuringRect = new Rect();
 
-    const mEPGBackground = '#1e1e1e';
+    const mEPGBackground = getTheme().surfaceBase;
     const mChannelLayoutMargin = 3;
     const mChannelLayoutPadding = 10;
     const mChannelLayoutHeight = 75;
     const mChannelLayoutWidth = 120;
-    const mChannelLayoutBackground = '#323232';
-    const mChannelLayoutBackgroundFocus = 'rgb(50,85,110)';
+    const mChannelLayoutBackground = getTheme().surfaceRaised;
+    const mChannelLayoutBackgroundFocus = getTheme().surfaceCard;
 
-    const mEventLayoutBackground = '#234054';
-    const mEventLayoutBackgroundCurrent = 'rgb(50,85,110)';
-    const mEventLayoutBackgroundFocus = 'rgb(29,170,226)';
-    const mEventLayoutTextColor = '#cccccc';
+    const mEventLayoutBackground = getTheme().surfaceRaised;
+    const mEventLayoutBackgroundCurrent = getTheme().surfaceCard;
+    const mEventLayoutBackgroundFocus = withAlpha(getTheme().accent, 0.85);
+    const mEventLayoutTextColor = getTheme().textPrimary;
     const mEventLayoutTextSize = 28;
-    const mEventLayoutRecordingColor = '#ff0000';
+    const mEventLayoutRecordingColor = getTheme().danger;
 
     const mDetailsLayoutMargin = 5;
     const mDetailsLayoutPadding = 8;
-    const mDetailsLayoutTextColor = '#cccccc';
+    const mDetailsLayoutTextColor = getTheme().textPrimary;
     const mDetailsLayoutTitleTextSize = 30;
     const mDetailsLayoutSubTitleTextSize = 26;
-    const mDetailsLayoutSubTitleTextColor = '#969696';
+    const mDetailsLayoutSubTitleTextColor = getTheme().textSecondary;
     const mDetailsLayoutDescriptionTextSize = 28;
 
     const mTimeBarHeight = 70;
     const mTimeBarTextSize = 32;
     const mTimeBarNowTextSize = 22;
     const mTimeBarLineWidth = 3;
-    const mTimeBarLineColor = '#c57120';
-    const mTimeBarLinePositionColor = 'rgb(29,170,226)';
+    // Two different jobs used to share one constant, which is why migrating it
+    // to `danger` washed the whole past region red - a colour that means
+    // "recording" everywhere else in this app.
+    //
+    // Dimming the past is a *surface* operation: paint the base colour over it
+    // so past programmes recede. Marking now is a *selection* operation, so it
+    // takes the accent, matching the "now" label already drawn beside it.
+    const mPastOverlayColor = getTheme().surfaceBase;
+    const mTimeBarLineColor = getTheme().accent;
+    const mTimeBarLinePositionColor = getTheme().accent;
 
     const resetBoundaries = () => {
         millisPerPixel.current = calculateMillisPerPixel();
@@ -233,7 +242,7 @@ const TVGuide = (props: {
         drawingRect.right = drawingRect.left + getWidth();
         drawingRect.bottom = drawingRect.top + getHeight();
 
-        canvas.fillStyle = '#000000';
+        canvas.fillStyle = getTheme().surfaceBase;
         canvas.fillRect(drawingRect.left, drawingRect.top, drawingRect.width, drawingRect.height);
         // channel Background
         mMeasuringRect.left = getScrollX();
@@ -264,10 +273,10 @@ const TVGuide = (props: {
             drawingRect.left
         );
         // Important bit here is to use rgba()
-        grd.addColorStop(0, 'rgba(35, 64, 84, 0.4)');
-        grd.addColorStop(0.3, 'rgba(35, 64, 84, 0.9)');
-        grd.addColorStop(0.7, 'rgba(35, 64, 84, 0.9)');
-        grd.addColorStop(1, 'rgba(35, 64, 84, 0.4)');
+        grd.addColorStop(0, withAlpha(getTheme().surfaceRaised, 0.5));
+        grd.addColorStop(0.3, withAlpha(getTheme().surfaceRaised, 0.92));
+        grd.addColorStop(0.7, withAlpha(getTheme().surfaceRaised, 0.92));
+        grd.addColorStop(1, withAlpha(getTheme().surfaceRaised, 0.5));
 
         // Fill with gradient
         canvas.fillStyle = grd;
@@ -299,7 +308,7 @@ const TVGuide = (props: {
         drawingRect.right = getWidth();
         drawingRect.bottom = getHeight();
 
-        canvas.fillStyle = '#000000'; //mChannelLayoutBackground'';
+        canvas.fillStyle = getTheme().surfaceBase;
         canvas.fillRect(drawingRect.left, drawingRect.top, drawingRect.width, drawingRect.height);
 
         // rect for logo
@@ -463,9 +472,9 @@ const TVGuide = (props: {
             drawingRect.right = getXFrom(now);
             drawingRect.bottom = drawingRect.top + getChannelListHeight();
 
-            canvas.fillStyle = mTimeBarLineColor;
+            canvas.fillStyle = mPastOverlayColor;
             const currentAlpha = canvas.globalAlpha;
-            canvas.globalAlpha = 0.2;
+            canvas.globalAlpha = 0.45;
             canvas.fillRect(drawingRect.left, drawingRect.top, drawingRect.width, drawingRect.height);
             canvas.globalAlpha = currentAlpha;
         }

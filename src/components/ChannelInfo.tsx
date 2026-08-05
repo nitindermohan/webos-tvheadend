@@ -4,6 +4,8 @@ import EPGUtils from '../utils/EPGUtils';
 import CanvasUtils, { WriteTextOptions } from '../utils/CanvasUtils';
 import AppContext from '../AppContext';
 import '../styles/app.css';
+import { getTheme, withAlpha } from '../utils/Theme';
+import { REMOTE_KEY_COLORS } from '../utils/RemoteKeys';
 
 const ChannelInfo = (props: { unmount: () => void }) => {
     const { locale, epgData, imageCache, logoVersion, fontVersion, currentChannelPosition } = useContext(AppContext);
@@ -18,8 +20,8 @@ const ChannelInfo = (props: { unmount: () => void }) => {
     const mChannelInfoKeyDescSize = 20;
     const mChannelInfoKeyPadding = 20;
     const mChannelInfoKeyRectWidth = 20;
-    const mChannelLayoutTextColor = '#cccccc';
-    const mChannelLayoutTitleTextColor = '#969696';
+    const mChannelLayoutTextColor = getTheme().textPrimary;
+    const mChannelLayoutTitleTextColor = getTheme().textSecondary;
     const mChannelInfoTimeBoxWidth = 375;
     const mChannelLayoutMargin = 3;
     const mChannelLayoutPadding = 7;
@@ -63,9 +65,9 @@ const ChannelInfo = (props: { unmount: () => void }) => {
             drawingRect.left
         );
         // Important bit here is to use rgba()
-        grd.addColorStop(0, 'rgba(11, 39, 58, 0.9)');
-        grd.addColorStop(0.5, 'rgba(35, 64, 84, 0.9)');
-        grd.addColorStop(1, 'rgba(11, 39, 58, 0.9)');
+        grd.addColorStop(0, withAlpha(getTheme().surfaceRaised, 0.92));
+        grd.addColorStop(0.5, withAlpha(getTheme().surfaceRaised, 0.92));
+        grd.addColorStop(1, withAlpha(getTheme().surfaceRaised, 0.92));
 
         // Fill with gradient
         canvas.fillStyle = grd;
@@ -140,7 +142,7 @@ const ChannelInfo = (props: { unmount: () => void }) => {
             // draw recording mark
             if (epgData.isRecording(currentEvent)) {
                 const radius = 10;
-                canvas.fillStyle = '#FF0000';
+                canvas.fillStyle = getTheme().danger;
                 canvas.beginPath();
                 canvas.arc(drawingRect.left + radius, drawingRect.top - radius, radius, 0, 2 * Math.PI);
                 canvas.fill();
@@ -215,7 +217,7 @@ const ChannelInfo = (props: { unmount: () => void }) => {
                     EPGUtils.toTimeFrameString(nextEvent.getStart(), nextEvent.getEnd(), locale),
                     drawingRect.left,
                     drawingRect.top,
-                    { ...nextEventTextOptions, fillStyle: 'rgb(65, 182, 230)' }
+                    { ...nextEventTextOptions, fillStyle: getTheme().accent }
                 );
             }
 
@@ -226,7 +228,7 @@ const ChannelInfo = (props: { unmount: () => void }) => {
 
             // red
             drawingRect.left = left;
-            canvas.fillStyle = '#EF3343';
+            canvas.fillStyle = REMOTE_KEY_COLORS.RED;
             canvas.fillRect(drawingRect.left, drawingRect.top, mChannelInfoKeyRectWidth, 10);
 
             drawingRect.left += mChannelInfoKeyRectWidth + mChannelLayoutPadding;
@@ -235,7 +237,7 @@ const ChannelInfo = (props: { unmount: () => void }) => {
 
             // green
             drawingRect.left += recMetrics.width + mChannelLayoutPadding + mChannelInfoKeyPadding;
-            canvas.fillStyle = '#46BB3E';
+            canvas.fillStyle = REMOTE_KEY_COLORS.GREEN;
             canvas.fillRect(drawingRect.left, drawingRect.top, mChannelInfoKeyRectWidth, 10);
 
             drawingRect.left += mChannelInfoKeyRectWidth + mChannelLayoutPadding;
@@ -244,7 +246,7 @@ const ChannelInfo = (props: { unmount: () => void }) => {
 
             // yellow
             drawingRect.left += menuMetrics.width + mChannelLayoutPadding + mChannelInfoKeyPadding;
-            canvas.fillStyle = '#FBC821';
+            canvas.fillStyle = REMOTE_KEY_COLORS.YELLOW;
             canvas.fillRect(drawingRect.left, drawingRect.top, mChannelInfoKeyRectWidth, 10);
 
             drawingRect.left += mChannelInfoKeyRectWidth + mChannelLayoutPadding;
@@ -253,7 +255,7 @@ const ChannelInfo = (props: { unmount: () => void }) => {
 
             // blue
             drawingRect.left += audioMetrics.width + mChannelLayoutPadding + mChannelInfoKeyPadding;
-            canvas.fillStyle = '#4065B8';
+            canvas.fillStyle = REMOTE_KEY_COLORS.BLUE;
             canvas.fillRect(drawingRect.left, drawingRect.top, mChannelInfoKeyRectWidth, 10);
 
             drawingRect.left += mChannelInfoKeyRectWidth + mChannelLayoutPadding;
@@ -267,18 +269,18 @@ const ChannelInfo = (props: { unmount: () => void }) => {
                 channelEventProgressRect.right,
                 channelEventProgressRect.left
             );
-            grd.addColorStop(0, 'rgba(80, 80, 80, 0.75)');
-            grd.addColorStop(0.5, 'rgba(200, 200, 200, 0.75)');
-            grd.addColorStop(1, 'rgba(80, 80, 80, 0.75)');
+            grd.addColorStop(0, withAlpha(getTheme().textMuted, 0.75));
+            grd.addColorStop(0.5, withAlpha(getTheme().textSecondary, 0.75));
+            grd.addColorStop(1, withAlpha(getTheme().textMuted, 0.75));
             const grd2 = canvas.createLinearGradient(
                 channelEventProgressRect.left,
                 channelEventProgressRect.left,
                 channelEventProgressRect.right,
                 channelEventProgressRect.left
             );
-            grd2.addColorStop(0, 'rgba(19, 126, 169, 0.75)');
-            grd2.addColorStop(0.5, 'rgba(65, 182, 230, 0.75)');
-            grd2.addColorStop(1, 'rgba(19, 126, 169, 0.75)');
+            grd2.addColorStop(0, withAlpha(getTheme().accent, 0.6));
+            grd2.addColorStop(0.5, withAlpha(getTheme().accent, 0.95));
+            grd2.addColorStop(1, withAlpha(getTheme().accent, 0.6));
 
             // draw base progress line
             canvas.fillStyle = grd;

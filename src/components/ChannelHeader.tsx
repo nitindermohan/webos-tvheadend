@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import CanvasUtils from '../utils/CanvasUtils';
 import '../styles/app.css';
+import { getTheme } from '../utils/Theme';
 
 const HEADER_HEIGHT = 130;
 const HEADER_TEXT_SIZE = 90;
@@ -12,9 +13,9 @@ const ChannelHeader = (props: { channelNumberText: string; unmount: () => void }
     const drawChannelNumber = (canvas: CanvasRenderingContext2D) => {
         // create gradient for text
         const gradient = canvas.createLinearGradient(0, 20, 0, HEADER_TEXT_SIZE + 20);
-        gradient.addColorStop(0, 'rgba(200, 200, 200, 1)');
-        gradient.addColorStop(0.5, 'rgba(255, 255, 255, 1)');
-        gradient.addColorStop(1, 'rgba(200, 200, 200, 1)');
+        gradient.addColorStop(0, getTheme().textSecondary);
+        gradient.addColorStop(0.5, getTheme().textPrimary);
+        gradient.addColorStop(1, getTheme().textSecondary);
 
         // draw text
         CanvasUtils.writeText(canvas, props.channelNumberText, getWidth() - 20, HEADER_TEXT_SIZE / 2 + 20, {

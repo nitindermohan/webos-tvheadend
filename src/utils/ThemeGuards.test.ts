@@ -25,22 +25,26 @@ const COLOUR_PATTERN = /#[0-9a-fA-F]{3,8}\b|\brgba?\([^)]*\)|\bhsla?\([^)]*\)/g;
  */
 const isTokenised = (literal: string) => literal.includes('var(');
 
-/** Theme.ts is where the literals are supposed to be. */
-const ALLOWED_FILES = ['utils/Theme.ts'];
+/**
+ * The two files allowed to name a colour.
+ *
+ * `Theme.ts` is the palette itself. `RemoteKeys.ts` holds the physical colours
+ * of the legacy remote's colour buttons, which are hardware identity rather
+ * than theme: a red button is red in every theme, and routing them through the
+ * palette would let a theme switch relabel the legend the info bar draws.
+ */
+const ALLOWED_FILES = ['utils/Theme.ts', 'utils/RemoteKeys.ts'];
 
 /**
- * Canvas surfaces not yet migrated. This list only ever shrinks - it exists so
- * the stylesheet's migration could land green rather than sitting behind the
- * whole canvas sweep, and a test below fails if it is still non-empty once the
- * sweep is done. Adding a file here would be a way to silence the guard, so
- * treat any growth as a mistake.
+ * Empty, and meant to stay that way.
+ *
+ * It briefly held the five canvas surfaces so the stylesheet's migration could
+ * land green rather than waiting on the whole canvas sweep. Anything added
+ * here is a colour that will not follow a theme switch, so a test below fails
+ * on a non-empty list - the exemption has to be argued for in review rather
+ * than slipped in.
  */
-const PENDING_MIGRATION = [
-    'components/ChannelInfo.tsx',
-    'components/TVGuide.tsx',
-    'components/RecordingList.tsx',
-    'components/ChannelHeader.tsx'
-];
+const PENDING_MIGRATION: string[] = [];
 
 /**
  * Test files may name colours freely - they assert on them, and pinning an
@@ -124,12 +128,11 @@ describe('theme guards', () => {
         ).toEqual([]);
     });
 
-    it('still has every file on the pending list', () => {
-        // A pending file that no longer exists, or has been renamed, would sit
-        // in the list forever exempting nothing while looking like real work
-        // outstanding. Delete it from the list when its migration lands.
-        PENDING_MIGRATION.forEach((relative) => {
-            expect(fs.existsSync(path.join(root, relative))).toBe(true);
-        });
+    it('exempts nothing from the guard', () => {
+        // The migration is finished, so the list is empty and must stay empty.
+        // Anything on it is a colour that will not follow a theme switch;
+        // failing here forces that exemption to be argued for in review rather
+        // than slipped in alongside other work.
+        expect(PENDING_MIGRATION).toEqual([]);
     });
 });
