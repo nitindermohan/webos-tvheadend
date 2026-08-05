@@ -37,47 +37,54 @@ Still to do:
 - **Hit targets.** Pills and action rows are sized for a 10-foot D-pad UI, not
   for pointing. Review minimum target sizes.
 
-### Fix the filter rail overflowing the channel list
+### Replace the horizontal filter rail with a category dropdown
 
-**User-reported, and the most visible defect on the list today.** With a real
-server's tag set the category pills spill out of the channel list column and
-look broken.
+**Decided direction (user, 2026-08-05).** The horizontal pill rail is being
+replaced rather than patched. Categories become a single collapsed control
+fixed at the top of the channel list; selecting it expands a **vertical
+dropdown** of all categories, and choosing one shows that category's channels.
+The long channel list stops being the default thing on screen - you pick a
+category first. `All` keeps everything, `★ Favorites` keeps the favourites.
 
-The numbers, measured against a live server with 14 channel tags (longest name
-13 chars): the pills need roughly **2282px**, and `.filterRail` gives them
-**852px** — 900px wide minus `24px` padding each side. About 2.7x over.
+Why replace rather than fix: the rail has three separate defects and a vertical
+list removes all three at once.
 
-The mechanism, all in `.filterRail` / `.filterPill` (`src/styles/app.css:242`):
+1. **It overflows.** Measured on a live server with 14 tags: the pills need
+   ~2282px against the 852px the rail offers (900px minus 24px padding a side).
+2. **It paints over the channel rows.** `.filterRail` is `display: flex` with
+   no `flex-wrap` and no `overflow` (`src/styles/app.css:242`), so pills first
+   squash and then spill outside the 900px column, over the video behind it.
+3. **Focus moves but the view does not follow.** With the rail focused,
+   left/right *do* step through every entry and even wrap
+   (`ChannelList.tsx:432-438`) - but nothing scrolls the focused pill into
+   view, so once focus passes the visible edge the user gets no feedback at
+   all and the rail feels stuck. This is the defect users actually report.
 
-- `display: flex` with **no `flex-wrap`**, so it defaults to `nowrap`.
-- **no `overflow`**, so it defaults to `visible`.
-- The rail is `position: absolute` inside the 900px-wide list.
+A vertical dropdown fixes all three: 14 items fit or scroll naturally, up/down
+is the natural remote gesture for a list, and it needs no horizontal scrolling
+model at all.
 
-So the pills first squash (flex items shrink by default, mangling the labels)
-and then spill outside the 900px column, over the video behind it.
+**Constraint carried over:** `ChannelList.tsx` hardcodes
+`mFilterRailHeight = 86` and derives every canvas row position from it -
+`getTopFrom(position) = position * mChannelLayoutHeight + mFilterRailHeight - scrollY`
+- and `src/utils/ChannelListGeometry.ts` takes the same value as `railHeight`
+for pointer hit-testing. The collapsed control must either keep a fixed known
+height, or that height must be measured and fed to both consumers. Getting this
+wrong puts the drawn rows and the click targets out of step - a worse bug than
+the one being fixed.
 
-**The trap when fixing this:** `ChannelList.tsx` hardcodes
-`mFilterRailHeight = 86` and every canvas row position is derived from it -
-`getTopFrom(position) = position * mChannelLayoutHeight + mFilterRailHeight - scrollY`,
-and the pointer hit-testing in `src/utils/ChannelListGeometry.ts` takes the
-same value as `railHeight`. Adding `flex-wrap: wrap` would make the rail two or
-three rows tall while that constant stayed at 86, silently pushing every channel
-row up underneath the rail and putting the click targets out of step with what
-is drawn - a much worse bug than the one being fixed. Any fix must either keep
-the rail exactly one row tall, or measure the rendered height and feed it to
-both consumers.
+**Open design questions, to settle before building:**
 
-Options worth weighing:
-
-- **Horizontal scroll with the focused pill scrolled into view.** Keeps the
-  height fixed, so `mFilterRailHeight` stays valid. Needs a pointer affordance
-  (see the pointer-scrolling item below) and edge fade hinting.
-- **Cap what reaches the rail** and move the rest behind an overflow entry.
-  The category picker already drops tags covering >=95% of channels, so the
-  mechanism for trimming the set exists.
-- **Wrap to a measured height**, deriving `mFilterRailHeight` from the DOM
-  rather than hardcoding it - which also closes the "rail height is a hardcoded
-  guess" item below.
+- Opening the channel list with right-arrow: does focus land on the category
+  control or on the channel list?
+- Does `★ Favorites` stay a always-visible one-press control, or move inside
+  the dropdown with everything else?
+- Does the dropdown reopen on the last-used category, and is the playing
+  channel's category indicated?
+- Key budget is tight: left/right already drive the details panel from the
+  channel list (`ChannelList.tsx:520-541`). Which key opens the dropdown, and
+  what closes it?
+- Does the same treatment apply to the EPG, which has its own channel column?
 
 ### Make the lists scrollable by pointer
 
@@ -126,5 +133,6 @@ deferred as cosmetic:
 
 ## Related
 
+- Performance: `docs/performance-backlog.md`
 - Plan: `docs/superpowers/plans/2026-08-03-favorites-and-categories.md`
 - Design: `docs/superpowers/specs/2026-08-03-favorites-and-categories-design.md`
