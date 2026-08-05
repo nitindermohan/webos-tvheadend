@@ -42,6 +42,17 @@ export interface Palette {
      */
     focus: string;
 
+    /**
+     * Text and icons drawn *on top of* an accent or focus fill - a focused
+     * dropdown row, a selected control.
+     *
+     * A distinct role rather than reusing `surfaceBase`, even though the two
+     * are both near-black here. They diverge the moment a light theme exists:
+     * `surfaceBase` becomes white while this must stay dark, because the fills
+     * it sits on are amber and blue in every theme.
+     */
+    textOnAccent: string;
+
     /** Recording markers and the record dot. */
     danger: string;
     /**
@@ -64,6 +75,7 @@ export const OLED_BLACK: Palette = {
 
     accent: '#3EA6FF',
     focus: '#FFC53D',
+    textOnAccent: '#0A0E13',
 
     danger: '#E0483D',
     favorite: '#FFC53D'
@@ -76,11 +88,47 @@ export const OLED_BLACK: Palette = {
 export const cssVariableName = (role: keyof Palette): string =>
     '--' + role.replace(/[A-Z]/g, (letter) => '-' + letter.toLowerCase());
 
+/** `surfaceBase` -> `--surface-base-rgb`. See `applyTheme`. */
+export const rgbVariableName = (role: keyof Palette): string => cssVariableName(role) + '-rgb';
+
+/** `#0E0E11` -> `14, 14, 17`. */
+const toRgbChannels = (hex: string): string => {
+    const value = hex.replace('#', '');
+    const full =
+        value.length === 3
+            ? value
+                  .split('')
+                  .map((character) => character + character)
+                  .join('')
+            : value;
+    const number = parseInt(full.slice(0, 6), 16);
+    // eslint-disable-next-line no-bitwise
+    return [(number >> 16) & 255, (number >> 8) & 255, number & 255].join(', ');
+};
+
+/**
+ * A role at partial opacity, for canvas.
+ *
+ * The overlays in this app sit on top of playing video, so translucency is
+ * structural rather than decorative - an opaque channel list would hide the
+ * thing the user is watching. Canvas needs a complete colour string, so this
+ * builds one. `color-mix()` would be the modern answer and is unavailable:
+ * webOS runs Chromium 87 and it landed in 111.
+ */
+export const withAlpha = (color: string, alpha: number): string =>
+    `rgba(${toRgbChannels(color)}, ${alpha})`;
+
 let current: Palette = OLED_BLACK;
 
 /**
  * Publish a palette to both consumers. Call once at startup, and again
  * whenever the user picks a different theme.
+ *
+ * Each role is stamped twice: `--surface-raised` for ordinary use, and
+ * `--surface-raised-rgb` holding bare `R, G, B` channels so the stylesheet can
+ * write `rgba(var(--surface-raised-rgb), 0.93)`. That indirection is what
+ * gives CSS translucency without `color-mix()`, which webOS's Chromium 87
+ * does not have.
  */
 export const applyTheme = (palette: Palette): void => {
     current = { ...palette };
@@ -88,6 +136,7 @@ export const applyTheme = (palette: Palette): void => {
     const root = document.documentElement;
     (Object.keys(current) as (keyof Palette)[]).forEach((role) => {
         root.style.setProperty(cssVariableName(role), current[role]);
+        root.style.setProperty(rgbVariableName(role), toRgbChannels(current[role]));
     });
 };
 
@@ -103,6 +152,6 @@ export const applyTheme = (palette: Palette): void => {
  */
 export const getTheme = (): Palette => ({ ...current });
 
-const Theme = { OLED_BLACK, applyTheme, getTheme, cssVariableName };
+const Theme = { OLED_BLACK, applyTheme, getTheme, cssVariableName, rgbVariableName, withAlpha };
 
 export default Theme;

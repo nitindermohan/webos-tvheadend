@@ -1,4 +1,12 @@
-import Theme, { OLED_BLACK, Palette, applyTheme, cssVariableName, getTheme } from './Theme';
+import Theme, {
+    OLED_BLACK,
+    Palette,
+    applyTheme,
+    cssVariableName,
+    getTheme,
+    rgbVariableName,
+    withAlpha
+} from './Theme';
 
 /**
  * The palette has two consumers with nothing in common: the stylesheet, which
@@ -113,6 +121,30 @@ describe('Theme', () => {
             applyTheme(OLED_BLACK);
             getTheme().accent = '#000000';
             expect(getTheme().accent).toBe(OLED_BLACK.accent);
+        });
+    });
+
+    describe('translucency', () => {
+        // Every overlay in this app sits on top of playing video, so alpha is
+        // structural, not decorative. Chromium 87 has no color-mix(), so both
+        // consumers get an explicit route to a partial-opacity colour.
+        it('stamps bare rgb channels alongside each role', () => {
+            applyTheme(OLED_BLACK);
+
+            expect(rgbVariableName('surfaceRaised')).toBe('--surface-raised-rgb');
+            // '#0E0E11' -> 14, 14, 17. Bare channels, not an rgb() call, so
+            // the stylesheet can wrap them: rgba(var(--surface-raised-rgb), .9)
+            expect(document.documentElement.style.getPropertyValue('--surface-raised-rgb')).toBe('14, 14, 17');
+            expect(document.documentElement.style.getPropertyValue('--surface-base-rgb')).toBe('0, 0, 0');
+        });
+
+        it('builds a complete colour string for canvas', () => {
+            expect(withAlpha('#000000', 0.9)).toBe('rgba(0, 0, 0, 0.9)');
+            expect(withAlpha('#3EA6FF', 0.15)).toBe('rgba(62, 166, 255, 0.15)');
+        });
+
+        it('accepts the three-digit hex form', () => {
+            expect(withAlpha('#fff', 1)).toBe('rgba(255, 255, 255, 1)');
         });
     });
 
