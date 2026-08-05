@@ -69,7 +69,10 @@ const CategoryBar = (props: {
                     onClick={handle(props.onOpenDropdown)}
                 >
                     {labelForFilter(props.categoryEntries, props.activeFilter)}
-                    <span className="categoryCaret">{props.isDropdownOpen ? '▴' : '▾'}</span>
+                    {/* Drawn in CSS, not typed as a character. This used to be
+                        U+25B4/U+25BE and rendered as a .notdef box on the C5 -
+                        see the note on `.categoryCaret` in app.css. */}
+                    <span className={props.isDropdownOpen ? 'categoryCaret open' : 'categoryCaret'} />
                 </div>
             </div>
 

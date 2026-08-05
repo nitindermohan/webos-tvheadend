@@ -281,9 +281,29 @@ body {
     color: #0a0e13;
 }
 
+/* The caret is drawn with borders rather than typed as a character.
+
+   This app declares no font-family of its own, so every glyph is a bet on
+   whatever webOS falls back to - and that font has no U+25B4/U+25BE (BLACK
+   UP/DOWN-POINTING SMALL TRIANGLE), which is what this control used to use.
+   Chromium drew the .notdef box instead. The larger U+25B2/U+25BC are more
+   widely covered, but swapping one codepoint for another only moves the bet;
+   a border triangle removes it. `currentColor` makes the caret follow the
+   control's active/focused colour with no extra rules. */
 .categoryCaret {
-    margin-left: 12px;
-    font-size: 20px;
+    display: inline-block;
+    width: 0;
+    height: 0;
+    margin-left: 14px;
+    vertical-align: middle;
+    border-left: 9px solid transparent;
+    border-right: 9px solid transparent;
+    border-top: 10px solid currentColor;
+}
+
+.categoryCaret.open {
+    border-top: 0;
+    border-bottom: 10px solid currentColor;
 }
 
 /* Overlays the channel rows rather than pushing them down - nothing about
@@ -422,6 +442,36 @@ body {
     width: 48px;
 }
 
+/* Box and tick are both drawn - see the note on `.categoryCaret`. The tick is
+   the standard rotated border-L; `content: ''` keeps it glyph-free. */
+.categoryCheck {
+    position: relative;
+    display: inline-block;
+    width: 28px;
+    height: 28px;
+    box-sizing: border-box;
+    border: 3px solid rgba(233, 238, 244, 0.55);
+    border-radius: 5px;
+    vertical-align: middle;
+}
+
+.categoryCheck.checked {
+    border-color: #ffcc4d;
+    background-color: #ffcc4d;
+}
+
+.categoryCheck.checked::after {
+    content: '';
+    position: absolute;
+    left: 8px;
+    top: 2px;
+    width: 6px;
+    height: 13px;
+    border: solid #0a0e13;
+    border-width: 0 3px 3px 0;
+    transform: rotate(45deg);
+}
+
 .categoryName {
     flex: 1;
 }
@@ -448,6 +498,25 @@ body {
     padding: 10px 16px;
     border: 2px solid transparent;
     border-radius: 8px;
+}
+
+.detailsStar {
+    margin-right: 12px;
+    color: rgba(233, 238, 244, 0.35);
+}
+
+.detailsStar.on {
+    color: #ffcc4d;
+}
+
+.detailsDot {
+    display: inline-block;
+    width: 18px;
+    height: 18px;
+    margin-right: 12px;
+    border-radius: 50%;
+    background-color: #e0483d;
+    vertical-align: middle;
 }
 
 .detailsAction.focused {

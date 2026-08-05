@@ -116,7 +116,16 @@ const CategorySetup = (props: { unmount: () => void }) => {
                     key={tag.uuid}
                     onClick={() => toggle(tag.uuid)}
                 >
-                    <span className="categoryBox">{selected.indexOf(tag.uuid) >= 0 ? '☑' : '☐'}</span>
+                    <span className="categoryBox">
+                        {/* Drawn in CSS. U+2610/U+2611 are in the same
+                            unavailable-on-webOS class as the caret glyph that
+                            rendered as a .notdef box on the C5. */}
+                        <span
+                            className={
+                                selected.indexOf(tag.uuid) >= 0 ? 'categoryCheck checked' : 'categoryCheck'
+                            }
+                        />
+                    </span>
                     <span className="categoryName">{tag.name}</span>
                     <span className="categoryCount">{tag.channelCount}</span>
                     {newTagUuids.indexOf(tag.uuid) >= 0 && <span className="categoryNew">new</span>}

@@ -68,17 +68,34 @@ const ChannelListDetails = (props: {
                         className={props.focusedActionIndex === 0 ? 'detailsAction focused' : 'detailsAction'}
                         onClick={props.onToggleFavorite}
                     >
+                        {/* Always the filled star, coloured rather than swapped
+                            for U+2606 - '★' is the one symbol confirmed to
+                            render on the C5 (the channel rows draw it too), so
+                            state is carried by colour instead of a second
+                            codepoint we have never seen render. */}
+                        <span
+                            className={
+                                FavoritesStore.has(props.epgChannel.getUUID())
+                                    ? 'detailsStar on'
+                                    : 'detailsStar'
+                            }
+                        >
+                            ★
+                        </span>
                         {FavoritesStore.has(props.epgChannel.getUUID())
-                            ? '★ Remove from favorites'
-                            : '☆ Add to favorites'}
+                            ? 'Remove from favorites'
+                            : 'Add to favorites'}
                     </div>
                     <div
                         className={props.focusedActionIndex === 1 ? 'detailsAction focused' : 'detailsAction'}
                         onClick={props.onToggleRecording}
                     >
+                        {/* Drawn dot, matching the `.rec` circle already used on
+                            the title below - not the U+25CF glyph. */}
+                        <span className="detailsDot" />
                         {props.currentEvent && props.isRecording(props.currentEvent)
-                            ? '● Cancel recording'
-                            : '● Record'}
+                            ? 'Cancel recording'
+                            : 'Record'}
                     </div>
                 </div>
             )}
