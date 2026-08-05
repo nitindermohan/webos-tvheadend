@@ -12,6 +12,7 @@ logo URL, and **87,890 EPG events - about 113 per channel**), not estimated.
 | **1. EPG early exit** - `visibleEvents()` in `src/utils/EventWindow.ts`, 7 tests | ~1350 visibility checks per frame -> ~30. The walk now stops at the first event past the window, as the original comment always claimed it did. |
 | **2. Font metrics memoised** - `CanvasUtils.getWidthPerCharacter`, 4 tests | 2 `measureText` calls per truncated label per frame -> 1 per distinct font, ever. |
 | **3. Favorites lookup** - `FavoritesStore`, 5 tests | ~720 `localStorage` reads + `JSON.parse` + O(n) `indexOf` per second while scrolling -> one cheap `getItem` and string compare, with an O(1) map. |
+| **4 + 5. Logos** - `LogoCache` in `src/utils/LogoCache.ts`, 17 tests | 1060 concurrent image requests at startup -> on-demand loading, at most 6 in flight. Per-frame `drawImage` rescaling of full-resolution PNGs -> each logo rasterised once at its drawn size and blitted. All five drawing surfaces converted. |
 
 Each of 1-3 was mutation-tested: reintroducing the original defect fails the
 test written for it, so none of them pass vacuously.
@@ -70,14 +71,14 @@ than a Set because the build targets es5 without downlevelIteration". That
 constraint died with the retarget above - it can be a `Set` now, turning the
 per-row `indexOf` from O(n) into O(1).
 
-## 4. Channel logos are rescaled on every frame
+## ~~4. Channel logos are rescaled on every frame~~ (done)
 
 `ChannelList.drawChannelItem` calls `drawImage` with the full-resolution PNG
 and scales it to roughly 117x90 **every frame**. Decode once, draw into an
 offscreen canvas at final size, then blit that. Usually the single largest
 canvas win in a list like this.
 
-## 5. 1060 logo fetches at startup
+## ~~5. 1060 logo fetches at startup~~ (done)
 
 `App.preloadImages()` walks every channel and constructs an `Image`
 immediately. On this lineup that is **1060 concurrent requests** the moment the
@@ -98,8 +99,16 @@ Costs nothing in the app and helps item 5 considerably.
 
 ## Remaining: suggested order
 
-Items 1-3 are done. 4-5 remain, and both change
-visible behaviour, so both want checking on the C5.
+All five items are done. What remains is on-device confirmation:
+
+- Logos now appear as rows are drawn rather than all being present up front.
+  On a 1060-channel lineup that is the intended trade, but it is a visible
+  change and worth watching on the C5 while scrolling fast.
+- The scaled-bitmap cache is capped at 240 entries, evicted oldest-first. That
+  is roughly 10 MB at channel-list size. If scrolling a long way and back shows
+  logos redrawing, the cap is the thing to raise.
+
+Still free and independent: enabling TVHeadend's `imagecache` (above).
 
 ## Related
 

@@ -30,7 +30,7 @@ const RecordingList = (props: {
     unmount: () => void;
     recordings: EPGChannelRecording[];
 }) => {
-    const { imageCache, currentRecordingPosition, setCurrentRecordingPosition, isAnimationsEnabled } = useContext(
+    const { imageCache, logoVersion, currentRecordingPosition, setCurrentRecordingPosition, isAnimationsEnabled } = useContext(
         AppContext
     );
 
@@ -278,13 +278,8 @@ const RecordingList = (props: {
         const image = imageURL && imageCache.get(imageURL);
         if (image !== undefined) {
             const channelImageRect = getDrawingRectForChannelImage(position, image);
-            canvas.drawImage(
-                image,
-                channelImageRect.left,
-                channelImageRect.top,
-                channelImageRect.width,
-                channelImageRect.height
-            );
+            const scaled = imageCache.getScaled(imageURL, channelImageRect.width, channelImageRect.height);
+            scaled && canvas.drawImage(scaled, channelImageRect.left, channelImageRect.top);
             IS_DEBUG && CanvasUtils.drawDebugRect(canvas, channelImageRect);
         }
     };
@@ -508,6 +503,12 @@ const RecordingList = (props: {
         // callback: update canvas after recordings have been reloaded
         updateCanvas();
     }, [props.recordings]);
+
+    useEffect(() => {
+        // logos load on demand; without this the list only repaints when the
+        // recordings reload, so a logo arriving would never be drawn
+        updateCanvas();
+    }, [logoVersion]);
 
     useEffect(() => {
         recalculateAndRedraw(false);

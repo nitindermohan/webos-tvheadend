@@ -26,7 +26,8 @@ const TVGuide = (props: {
     toggleRecording: (event: EPGEvent, callback: () => unknown) => void;
     unmount: () => void;
 }) => {
-    const { locale, currentChannelPosition, epgData, imageCache, setCurrentChannelPosition } = useContext(AppContext);
+    const { locale, currentChannelPosition, epgData, imageCache, logoVersion, setCurrentChannelPosition } =
+        useContext(AppContext);
 
     const canvas = useRef<HTMLCanvasElement>(null);
     const epgWrapper = useRef<HTMLDivElement>(null);
@@ -282,13 +283,10 @@ const TVGuide = (props: {
         const image = imageURL && imageCache.get(imageURL);
         if (image) {
             const imageDrawingRect = getDrawingRectForChannelImage(drawingRect, image);
-            canvas.drawImage(
-                image,
-                imageDrawingRect.left,
-                imageDrawingRect.top,
-                imageDrawingRect.width,
-                drawingRect.height
-            );
+            // pre-rasterised at the drawn size; height stays drawingRect.height
+            // to preserve the existing (slightly odd) sizing here
+            const scaled = imageCache.getScaled(imageURL, imageDrawingRect.width, drawingRect.height);
+            scaled && canvas.drawImage(scaled, imageDrawingRect.left, imageDrawingRect.top);
         }
 
         // rect for background
@@ -644,7 +642,8 @@ const TVGuide = (props: {
 
         if (image) {
             drawingRect = getDrawingRectForChannelImage(drawingRect, image);
-            canvas.drawImage(image, drawingRect.left, drawingRect.top, drawingRect.width, drawingRect.height);
+            const scaled = imageCache.getScaled(imageURL, drawingRect.width, drawingRect.height);
+            scaled && canvas.drawImage(scaled, drawingRect.left, drawingRect.top);
         } else {
             canvas.textAlign = 'center';
             canvas.font = 'bold 17px Moonstone';
@@ -961,6 +960,11 @@ const TVGuide = (props: {
             cancelScrollAnimation();
         };
     }, []);
+
+    useEffect(() => {
+        // logos load on demand now - repaint when one arrives
+        updateCanvas();
+    }, [logoVersion]);
 
     const updateCanvas = () => {
         if (canvas.current) {

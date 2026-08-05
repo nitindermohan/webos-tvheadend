@@ -6,7 +6,7 @@ import AppContext from '../AppContext';
 import '../styles/app.css';
 
 const ChannelInfo = (props: { unmount: () => void }) => {
-    const { locale, epgData, imageCache, currentChannelPosition } = useContext(AppContext);
+    const { locale, epgData, imageCache, logoVersion, currentChannelPosition } = useContext(AppContext);
 
     const canvas = useRef<HTMLCanvasElement>(null);
     const infoWrapper = useRef<HTMLDivElement>(null);
@@ -111,7 +111,8 @@ const ChannelInfo = (props: { unmount: () => void }) => {
         const image = imageURL && imageCache.get(imageURL);
         if (image !== undefined) {
             drawingRect = getDrawingRectForChannelImage(drawingRect, image);
-            canvas.drawImage(image, drawingRect.left, drawingRect.top, drawingRect.width, drawingRect.height);
+            const scaled = imageCache.getScaled(imageURL, drawingRect.width, drawingRect.height);
+            scaled && canvas.drawImage(scaled, drawingRect.left, drawingRect.top);
         }
 
         // channel event
@@ -354,6 +355,12 @@ const ChannelInfo = (props: { unmount: () => void }) => {
         updateCanvas();
         resetUnmountTimeout();
     }, [currentChannelPosition]);
+
+    useEffect(() => {
+        // logos load on demand; repaint as soon as one arrives rather than
+        // waiting up to 500ms for the live-countdown interval to come round
+        updateCanvas();
+    }, [logoVersion]);
 
     const focus = () => {
         infoWrapper.current?.focus();

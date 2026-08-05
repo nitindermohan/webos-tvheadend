@@ -1,4 +1,5 @@
-import React, { createContext, useRef, useState } from 'react';
+import React, { createContext, useEffect, useRef, useState } from 'react';
+import LogoCache from './utils/LogoCache';
 import { AppViewState } from './App';
 import EPGData from './models/EPGData';
 import TVHDataService from './services/TVHDataService';
@@ -24,7 +25,9 @@ type AppContext = {
     tvhDataService?: TVHDataService;
     setTvhDataService: (value?: TVHDataService) => void;
     epgData: EPGData;
-    imageCache: Map<URL, HTMLImageElement>;
+    imageCache: LogoCache;
+    /** Bumped when logos finish loading, so canvas surfaces repaint. */
+    logoVersion: number;
     currentChannelPosition: number;
     setCurrentChannelPosition: (value: number) => void;
     currentRecordingPosition: number;
@@ -51,7 +54,16 @@ export const AppContextProvider = ({ children }: { children: JSX.Element }) => {
     const [locale, setLocale] = useState('en-US');
     const [tvhDataService, setTvhDataService] = useState<TVHDataService>();
     const [epgData] = useState(new EPGData());
-    const [imageCache] = useState(new Map<URL, HTMLImageElement>());
+    const [imageCache] = useState(() => new LogoCache());
+    const [logoVersion, setLogoVersion] = useState(0);
+
+    // Logos now load on demand rather than all at once, so a canvas surface can
+    // draw a row before its logo exists. LogoCache coalesces a burst of loads
+    // into one notification, so this is a handful of renders during a scroll,
+    // not one per image.
+    useEffect(() => {
+        imageCache.onReady(() => setLogoVersion((version) => version + 1));
+    }, [imageCache]);
     const [currentChannelPosition, setCurrentChannelPositionState] = useState(0);
     // Callers of setActiveFilter can be several renders removed from the one
     // that produced their closure (App.tsx's reloadData is captured once by a
@@ -84,6 +96,7 @@ export const AppContextProvider = ({ children }: { children: JSX.Element }) => {
         setTvhDataService: (value?: TVHDataService) => setTvhDataService(value),
         epgData: epgData,
         imageCache: imageCache,
+        logoVersion: logoVersion,
         currentChannelPosition: currentChannelPosition,
         setCurrentChannelPosition: (value: number) => setCurrentChannelPosition(value),
         currentRecordingPosition: currentRecordingPosition,

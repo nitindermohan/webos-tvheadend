@@ -36,6 +36,7 @@ const ChannelList = (props: {
     const {
         epgData,
         imageCache,
+        logoVersion,
         currentChannelPosition,
         setCurrentChannelPosition,
         isAnimationsEnabled,
@@ -307,13 +308,10 @@ const ChannelList = (props: {
         const image = imageURL && imageCache.get(imageURL);
         if (image !== undefined) {
             const channelImageRect = getDrawingRectForChannelImage(position, image);
-            canvas.drawImage(
-                image,
-                channelImageRect.left,
-                channelImageRect.top,
-                channelImageRect.width,
-                channelImageRect.height
-            );
+            // blit a bitmap already rasterised at this size rather than making
+            // drawImage rescale the full-resolution logo on every frame
+            const scaled = imageCache.getScaled(imageURL, channelImageRect.width, channelImageRect.height);
+            scaled && canvas.drawImage(scaled, channelImageRect.left, channelImageRect.top);
             IS_DEBUG && CanvasUtils.drawDebugRect(canvas, channelImageRect);
         }
 
@@ -772,6 +770,12 @@ const ChannelList = (props: {
         // the filtered view or the favorite markers changed - repaint
         recalculateAndRedraw(false);
     }, [activeFilter, favoritesVersion]);
+
+    useEffect(() => {
+        // logos load on demand now, so a row can be drawn before its logo
+        // exists; LogoCache bumps logoVersion (coalesced) when one arrives
+        updateCanvas();
+    }, [logoVersion]);
 
     useEffect(() => {
         // activeFilter can change from outside this component (the background

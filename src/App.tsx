@@ -5,7 +5,6 @@ import Player from './components/Player';
 import TVHSettings from './components/TVHSettings';
 import './styles/app.css';
 import AppContext, { AppVisibilityState } from './AppContext';
-import EPGChannel from './models/EPGChannel';
 import StorageHelper from './utils/StorageHelper';
 import Menu, { MenuItem } from './components/Menu';
 import FavoritesStore from './utils/FavoritesStore';
@@ -33,7 +32,6 @@ const App = () => {
         tvhDataService,
         setTvhDataService,
         epgData,
-        imageCache,
         setCurrentChannelPosition,
         setPersistentAuthToken,
         setAnimationsEnabled,
@@ -148,9 +146,7 @@ const App = () => {
                 setDebugInfo("Safe persistent auth token...");
                 safePersistentAuthToken(channels[0].getStreamUrl());
             }
-            setDebugInfo("Preload images...");
-            // preload images
-            preloadImages(channels);
+            // logos load on demand as rows are drawn - see LogoCache
 
             setDebugInfo("Retrieve EPG...");
             // retrieve epg and update channels
@@ -206,24 +202,6 @@ const App = () => {
         }
     };
 
-    /**
-     * preload all images and set placeholders
-     * if images cannot be loaded
-     */
-    const preloadImages = (channels: EPGChannel[]) => {
-        channels.forEach((channel) => {
-            const imageURL = channel.getImageURL();
-            // logo url is optional
-            if (!imageURL) {
-                return;
-            }
-            const img = new Image();
-            img.src = imageURL.toString();
-            img.onload = () => {
-                imageCache.set(imageURL, img);
-            };
-        });
-    };
 
     const handleKeyPress = (event: React.KeyboardEvent<HTMLDivElement>) => {
         const keyCode = event.keyCode;
