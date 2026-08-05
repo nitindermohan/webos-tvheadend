@@ -1,4 +1,4 @@
-# ---th0enix Build---
+# ---sharpluck Build---
 * Update dependencies
 * Remove background, splash, icons
 * Added extended request timeout & video preload disable (MartB)
