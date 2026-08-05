@@ -164,6 +164,29 @@ deferred as cosmetic:
 | Channel name can overrun the logo | Worst case the name's right edge reaches x=783 against a logo starting at ~780, and x=810 on recording rows. Pre-existing; mitigated in practice by text truncation. |
 | Details panel lost channel browsing | ↑/↓ in the details panel now move between the two action rows rather than scrolling channels. Deliberate, but a capability was lost — reconsider in the redesign. |
 
+## Found while running the app against fixtures (2026-08-06)
+
+Both surfaced by `npm run start:mock` during the Phase 0 theme work, and both
+deliberately left alone there because neither is a colour question.
+
+- **Enact Moonstone widgets do not follow the theme.** `TVHSettings`' `Input`
+  and `Button` come from @enact/moonstone and carry their own styling, so on
+  the OLED-black surface they render as light-grey boxes with low-contrast
+  placeholder text - the only part of the app that still looks like a
+  different application. Options are overriding Moonstone's own custom
+  properties, wrapping them, or replacing them with plain elements. Worth
+  deciding deliberately, since the settings screen is also the first thing a
+  new user sees.
+
+- **The info bar advertises colour buttons the remote does not have.**
+  `ChannelInfo` draws a red/green/yellow/blue key legend unconditionally,
+  while modern Magic Remotes have no colour buttons at all (the codes survive
+  only as hidden aliases for older remotes - see `RemoteKeys.ts`). The
+  colours themselves are now `REMOTE_KEY_COLORS`, deliberately exempt from
+  theming because they identify hardware. What remains is the behaviour
+  question: gate the legend on whether those keys exist, or replace it with
+  the gestures that do work.
+
 ## Interaction items worth revisiting
 
 - **Arrow keys leak past the audio/subtitle panel.** `ChannelSettings`

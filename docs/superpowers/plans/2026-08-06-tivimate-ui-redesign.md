@@ -76,7 +76,21 @@ From `npm run start:mock` at 1920×1080, before any of this work:
 
 ---
 
-## Phase 0 — Foundation: theme and typography
+## Phase 0 — Foundation: theme and typography — **DONE 2026-08-06**
+
+Landed as `85847e2`, `d01e8dc`, `dcc6021`, `ce3ab2c`, `fd4fdf5`. 188 tests,
+build clean at 215.33 kB + 120KB of bundled font. Every task below is complete;
+the record is kept because the constraints it documents still bind Phases 1-4.
+
+**What running it caught that reading the diff would not have:** migrating
+TVGuide's `mTimeBarLineColor` to `danger` washed the entire past region red,
+because one constant was doing two unrelated jobs (dimming the past, and
+marking now). Split into `mPastOverlayColor` and `mTimeBarLineColor`.
+
+**Two findings recorded in `docs/ui-redesign-backlog.md` rather than fixed
+here:** Enact Moonstone's `Input`/`Button` ignore the theme and still render
+light on the settings screen; and the info bar advertises colour buttons the
+Magic Remote does not have.
 
 Nothing here changes the layout. It replaces ~86 scattered colour literals and
 the complete absence of a font declaration. Everything later depends on it.
@@ -86,7 +100,7 @@ the complete absence of a font declaration. Everything later depends on it.
 `ChannelHeader.tsx` 3; `CanvasUtils.ts` 2. No `font-family` anywhere in the
 DOM; canvas asks for `'Moonstone'` at 17 call sites.
 
-### The palette
+### The palette (as built)
 
 Role names, never colour names — a future light theme must not be described by
 tokens that lie about themselves.
@@ -100,6 +114,9 @@ textSecondary   #8A8F98
 textMuted       #5A5F68
 accent          #3EA6FF   SELECTION only
 focus           #FFC53D   FOCUS RING only
+textOnAccent    #0A0E13   text drawn ON an accent/focus fill - added during
+                          the build; distinct from surfaceBase because they
+                          diverge the moment a light theme exists
 danger          #E0483D   record dot
 favorite        #FFC53D   the ★ — the one deliberate reuse of the focus hue
 ```
@@ -109,13 +126,13 @@ banner. That is the main reason the UI reads as busy. After this phase `focus`
 means "the cursor is here" and nothing else; the badge moves to `accent`, the
 banner to `textSecondary`.
 
-- [ ] **Task 0.1 — `Theme.ts` + tests.** `Palette` interface; `OLED_BLACK`;
+- [x] **Task 0.1 — `Theme.ts` + tests.** `Palette` interface; `OLED_BLACK`;
       `applyTheme(palette)` stamping `--kebab-case` custom properties;
       `getTheme()` returning the current palette, and a sane default before any
       `applyTheme` (a canvas can paint before `index.tsx` finishes). Derive the
       variable name from the role key so a new role cannot be added to the type
       and forgotten in the stamping loop. Mutation-test by dropping one role.
-- [ ] **Task 0.2 — Bundle Inter, and win the canvas font race.**
+- [x] **Task 0.2 — Bundle Inter, and win the canvas font race.**
       `npm i @fontsource/inter`, weights 400/600/700, latin.
 
       **The trap:** canvas does not participate in CSS font loading.
@@ -137,7 +154,7 @@ banner to `textSecondary`.
       settings, so canvas figures stay proportional. They sit in a fixed
       right-aligned column, so the effect is nil — noted so it is not later
       read as an oversight.
-- [ ] **Task 0.3 — Guard test + CSS migration.** `ThemeGuards.test.ts` scans
+- [x] **Task 0.3 — Guard test + CSS migration.** `ThemeGuards.test.ts` scans
       `app.css` and `src/components/**` for colour literals and fails naming
       file, line and literal; allowed only in `Theme.ts`. Include the
       "scans the source tree" sanity assertion from `GlyphCoverage.test.ts` —
@@ -145,13 +162,13 @@ banner to `textSecondary`.
       first and record the real offender count. Then migrate the 66 CSS
       literals. Collapse the four near-identical darks deliberately, not by
       nearest hex.
-- [ ] **Task 0.4 — Canvas migration**, one commit per component, largest
+- [x] **Task 0.4 — Canvas migration**, one commit per component, largest
       first. Read `getTheme()` inside the draw call, never at module scope, or
       a later theme switch paints stale. `rgba(35,64,84,0.9)` appears 7 times
       and `rgba(11,39,58,0.7)` 4 times — confirm each means the same *role*
       before collapsing. Two colours being equal today is not evidence they
       mean the same thing. Guard must reach zero; mutation-test it.
-- [ ] **Task 0.5 — Run the app, screenshot every surface, look at them.**
+- [x] **Task 0.5 — Run the app, screenshot every surface, look at them.**
 
 ---
 
