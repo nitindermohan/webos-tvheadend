@@ -1,4 +1,5 @@
 import Rect from "../models/Rect";
+import { getTheme } from "./Theme";
 
 export interface WriteTextOptions {
     fontSize?: number;
@@ -145,7 +146,7 @@ export default class CanvasUtils {
         options.fontFace = options.fontFace || CanvasUtils.DEFAULT_FONT_FACE;
         options.textAlign = options.textAlign || 'left';
         options.textBaseline = options.textBaseline || 'middle';
-        options.fillStyle = options.fillStyle || '#cccccc';
+        options.fillStyle = options.fillStyle || getTheme().textPrimary;
         options.fontSize = options.fontSize || 20;
         options.isBold = options.isBold !== undefined || false;
         options.maxWidth = options.maxWidth || undefined;
@@ -184,7 +185,8 @@ export default class CanvasUtils {
     }
 
     static drawDebugRect(canvas: CanvasRenderingContext2D, drawingRect: Rect) {
-        canvas.strokeStyle = '#FF0000';
+        // debug-only overlay, drawn when IS_DEBUG is set
+        canvas.strokeStyle = getTheme().danger;
         canvas.strokeRect(drawingRect.left, drawingRect.top, drawingRect.width, drawingRect.height);
     }
 }

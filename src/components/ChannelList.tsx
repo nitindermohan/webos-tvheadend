@@ -3,6 +3,7 @@ import Rect from '../models/Rect';
 import CanvasUtils from '../utils/CanvasUtils';
 import AppContext from '../AppContext';
 import '../styles/app.css';
+import { getTheme, withAlpha } from '../utils/Theme';
 import ChannelListDetails from './ChannelListDetails';
 import EPGEvent from '../models/EPGEvent';
 import EPGChannel from '../models/EPGChannel';
@@ -75,13 +76,20 @@ const ChannelList = (props: {
     const mChannelLayoutTextSize = 32;
     const mChannelLayoutEventTextSize = 26;
     const mChannelLayoutNumberTextSize = 38;
-    const mChannelLayoutTextColor = '#cccccc';
-    const mChannelLayoutTitleTextColor = '#969696';
+    const mChannelLayoutTextColor = getTheme().textPrimary;
+    const mChannelLayoutTitleTextColor = getTheme().textSecondary;
     const mChannelLayoutMargin = 3;
     const mChannelLayoutPadding = 7;
     const mChannelLayoutHeight = 90;
     const mChannelLayoutWidth = 900;
-    const mChannelLayoutBackgroundFocus = 'rgba(29,170,226,1)';
+    // The selected row used to be flooded with solid cyan, which put the
+    // #cccccc row text at poor contrast against it - the single most obvious
+    // thing wrong with the list. It is now a card fill with an accent bar down
+    // the left edge, so "this is the channel playing" is carried by the marker
+    // rather than by drowning the row.
+    const mChannelLayoutBackgroundFocus = withAlpha(getTheme().surfaceCard, 0.96);
+    const mChannelLayoutSelectionMarker = getTheme().accent;
+    const mChannelLayoutSelectionMarkerWidth = 6;
     // the category bar's height, which is also the y-origin of row 0. Owned by
     // CategoryBar (which pins itself to exactly this) rather than guessed here,
     // because getTopFrom and the pointer hit-test below both derive from it -
@@ -183,11 +191,13 @@ const ChannelList = (props: {
             drawingRect.bottom,
             drawingRect.bottom
         );
-        // Important bit here is to use rgba()
-        grd.addColorStop(0, 'rgba(11, 39, 58, 0.7)');
-        grd.addColorStop(0.2, 'rgba(35, 64, 84, 0.9)');
-        grd.addColorStop(0.8, 'rgba(35, 64, 84, 0.9)');
-        grd.addColorStop(1, 'rgba(11, 39, 58, 0.7)');
+        // Translucent so the video keeps showing through, and fading at both
+        // ends so the list dissolves into the picture rather than ending on a
+        // hard edge. Alpha matches the DOM panels' 0.92 in app.css.
+        grd.addColorStop(0, withAlpha(getTheme().surfaceRaised, 0.75));
+        grd.addColorStop(0.2, withAlpha(getTheme().surfaceRaised, 0.92));
+        grd.addColorStop(0.8, withAlpha(getTheme().surfaceRaised, 0.92));
+        grd.addColorStop(1, withAlpha(getTheme().surfaceRaised, 0.75));
 
         // Fill with gradient
         canvas.fillStyle = grd;
@@ -230,6 +240,14 @@ const ChannelList = (props: {
         if (isSelectedChannel) {
             canvas.fillStyle = mChannelLayoutBackgroundFocus;
             canvas.fillRect(drawingRect.left, drawingRect.top, drawingRect.width, drawingRect.height);
+
+            canvas.fillStyle = mChannelLayoutSelectionMarker;
+            canvas.fillRect(
+                drawingRect.left,
+                drawingRect.top,
+                mChannelLayoutSelectionMarkerWidth,
+                drawingRect.height
+            );
         }
 
         // channel number
@@ -249,7 +267,7 @@ const ChannelList = (props: {
         // recording mark
         if (currentEvent && epgData.isRecording(currentEvent)) {
             const radius = 10;
-            canvas.fillStyle = '#FF0000';
+            canvas.fillStyle = getTheme().danger;
             canvas.beginPath();
             canvas.arc(drawingRect.left + mChannelLayoutNameLeft + radius, drawingRect.middle - radius, radius, 0, 2 * Math.PI);
             canvas.fill();
@@ -344,7 +362,7 @@ const ChannelList = (props: {
             CanvasUtils.writeText(canvas, '★', drawingRect.left + 92, drawingRect.middle, {
                 fontSize: mChannelLayoutTextSize,
                 textAlign: 'center',
-                fillStyle: '#ffcc4d',
+                fillStyle: getTheme().favorite,
                 isBold: true
             });
         }

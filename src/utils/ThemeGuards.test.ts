@@ -39,9 +39,7 @@ const PENDING_MIGRATION = [
     'components/ChannelInfo.tsx',
     'components/TVGuide.tsx',
     'components/RecordingList.tsx',
-    'components/ChannelList.tsx',
-    'components/ChannelHeader.tsx',
-    'utils/CanvasUtils.ts'
+    'components/ChannelHeader.tsx'
 ];
 
 /**
