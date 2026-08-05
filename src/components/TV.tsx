@@ -18,6 +18,7 @@ import HoldGesture from '../utils/HoldGesture';
 import { shouldSwitchStream } from '../utils/StreamIdentity';
 import { State } from '../models/TVState';
 import { nextStateOnBack } from '../utils/BackNavigation';
+import { nextChannelPosition, NO_ZAP, ZapDirection } from '../utils/ChannelZap';
 
 export { State };
 
@@ -63,6 +64,14 @@ const TV = () => {
 
     const focus = () => tvWrapper.current?.focus();
 
+    const zapTo = (direction: ZapDirection) => {
+        const next = nextChannelPosition(currentChannelPosition, epgData.getChannelCount(), direction);
+        if (next === NO_ZAP) {
+            return;
+        }
+        changeChannelPosition(next);
+    };
+
     const handleKeyPress = (event: React.KeyboardEvent<HTMLDivElement>) => {
         // in case we are in menu state we don't handle any keypress
         if (menuState) {
@@ -84,37 +93,24 @@ const TV = () => {
                 event.stopPropagation();
                 enterChannelNumberPart(keyCode - 48);
                 break;
+            // CH- steps to the previous channel number; arrow DOWN moves to the
+            // channel drawn below in the list, which is the next number. The two
+            // therefore point opposite ways on purpose - see ChannelZap.ts.
             case RemoteKeys.CHANNEL_DOWN:
                 event.stopPropagation();
-                // channel down
-                if (currentChannelPosition === 0) {
-                    return;
-                }
-                changeChannelPosition(currentChannelPosition - 1);
-                break;
-            case RemoteKeys.ARROW_DOWN:
-                event.stopPropagation();
-                // zap down
-                if (currentChannelPosition === 0) {
-                    return;
-                }
-                changeChannelPosition(currentChannelPosition - 1);
-                break;
-            case RemoteKeys.CHANNEL_UP:
-                event.stopPropagation();
-                // channel up
-                if (currentChannelPosition === epgData.getChannelCount() - 1) {
-                    return;
-                }
-                changeChannelPosition(currentChannelPosition + 1);
+                zapTo('previous');
                 break;
             case RemoteKeys.ARROW_UP:
                 event.stopPropagation();
-                // zap up
-                if (currentChannelPosition === epgData.getChannelCount() - 1) {
-                    return;
-                }
-                changeChannelPosition(currentChannelPosition + 1);
+                zapTo('previous');
+                break;
+            case RemoteKeys.CHANNEL_UP:
+                event.stopPropagation();
+                zapTo('next');
+                break;
+            case RemoteKeys.ARROW_DOWN:
+                event.stopPropagation();
+                zapTo('next');
                 break;
             case RemoteKeys.ARROW_RIGHT:
                 // ChannelSettings only consumes OK/BACK/YELLOW/'y', so its arrow
