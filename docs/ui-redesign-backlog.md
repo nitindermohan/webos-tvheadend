@@ -162,19 +162,24 @@ but there is no pointer-driven scrolling beyond that.
   the right edge. Not done for the EPG.
 - Decide whether the same treatment applies to the EPG's horizontal time axis.
 
-**The list scrolls two rows past its own content.** Found by drawing the
-indicator, which made the dead space at the end obvious.
-`ChannelList.scrollToChannelPosition` clamps the bottom to
-`rowHeight * (channelCount - 2 * VERTICAL_SCROLL_TOP_PADDING_ITEM)` — for 91
-channels at 90px that is 7290, against a true maximum of
-`91*90 - 1080 = 7110`. So the last screen shows the final row followed by ~180px
-of empty canvas. The scroll thumb is *correct* there (it clamps, and you really
-are on the last channel), which is what makes the gap visible as a gap.
+~~**The list scrolls two rows past its own content.**~~ **Fixed 2026-08-06
+(Phase 3)**, along with a second bug in the same function nobody had noticed:
+the bound went *negative* for any list shorter than 10 channels, pushing every
+row down the canvas. Both replaced by `clamp(desired, 0, contentHeight -
+viewportHeight)` in `ChannelListGeometry.scrollTargetFor`.
 
-Left for **Phase 3**, not fixed in Phase 2: the fix has to consult the viewport
-height, which that function does not do today, and Phase 3 parameterises this
-same function for the LIST/COMPACT densities. Fixing it now would mean writing
-the geometry test twice.
+~~**The scroll animation settles past its target.**~~ **Fixed 2026-08-06
+(Phase 3)**, `ScrollAnimation.advanceScroll`. Was invisible at 90px rows purely
+by arithmetic accident.
+
+**`TVGuide.animateScroll` still has that second bug** (`TVGuide.tsx:1011`) — it
+is the same four lines, unfixed, and its `scrollAnimationId` is not passed
+through `advanceScroll`. It does not currently misbehave: the guide's rows are
+a fixed height whose delta divides evenly, which is exactly the accident that
+hid it in the channel list. Left alone rather than changed blind, because the
+guide's scroll model also carries a horizontal axis and its own
+`VISIBLE_CHANNEL_COUNT` bound, and none of that is covered by tests yet. Point
+it at `ScrollAnimation` when the guide next gets worked on.
 
 ## Layout and visual items carried over
 

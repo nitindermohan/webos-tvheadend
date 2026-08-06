@@ -290,18 +290,60 @@ densities — fixing it now would mean writing the geometry test twice.
 
 ---
 
-## Phase 3 — Densities
+## Phase 3 — Densities — **DONE 2026-08-06**
 
-- [ ] **Task 3.1 — Parameterise row height.** `mChannelLayoutHeight` and the
-      column offsets become a `Density` descriptor (`LIST` 90px, `COMPACT`
-      48px) threaded to both `ChannelList` and `ChannelListGeometry`.
-      Geometry tests parameterise over both densities — the hit-testing bug
-      this guards against is silent and only reproduces with a pointer.
-- [ ] **Task 3.2 — Compact row rendering.** Number + name only, no logo, no
-      event line.
-- [ ] **Task 3.3 — Run the app** in both densities; check the bottom row in
-      each. (1080 is not a multiple of either height, so both will show a
-      partial last row — decide it deliberately rather than inheriting it.)
+Landed as `7a5493b` and `874f15c`. 254 tests, build clean at 215.92 kB.
+
+**Density is a parameter, not yet a setting.** `AppContext` holds it and
+`setDensity` exists, but nothing calls it and nothing is persisted — Phase 4's
+`AppearanceStore` owns the whole appearance slice, and a lone localStorage key
+for density would only have to be folded back in. Both densities were verified
+by flipping `DEFAULT_DENSITY` and reloading.
+
+**Horizontal geometry is deliberately shared** between the two. Switching
+density changes the rhythm of the list without reshuffling it sideways, so the
+numbers and names stay where the eye left them.
+
+**Two scroll bugs fell out of this**, both pre-existing, both invisible at 90px:
+
+1. **The clamp.** `scrollToChannelPosition`'s bottom bound was
+   `rowHeight * (channelCount - 2 * topPadding)` — a bound that never consults
+   the viewport, so it cannot be right for two row heights. Wrong in both
+   directions: two rows of dead canvas below the last channel at 90px (twelve
+   at 48px), and *negative* for any list shorter than 10 channels, which pushed
+   every row down the canvas and left a band of nothing above the first one.
+   Confirmed live against SDTV's 3 channels: rows were 540px down the screen.
+   All three of the old branches collapse into `clamp(desired, 0, contentHeight
+   - viewportHeight)`.
+2. **The animation never landed where it was aimed.** It steps by a fixed delta
+   and asks whether it has *already passed* the target, so it stops wherever
+   the overshooting step left it. `distance / (rowHeight / 5)` is
+   `distance / 18` at 90px — eighteen whole steps, landing correctly by
+   accident. At 48px it is `distance / 9.6`. Both branches carried the fix
+   commented out; it presumably read as a no-op, because correcting the offset
+   without a repaint changes nothing on screen. Writing the test then caught a
+   second defect the first fix left: testing the *current* offset draws one
+   frame past the target before snapping back.
+
+**The partial last row is fine and needs no decision.** 1080 *is* a multiple of
+90, and at 48px the clamp makes the last row land flush at the bottom, so a
+clipped row only ever appears mid-list — where it reads as "there is more
+below", which is what it should.
+
+- [x] **Task 3.1 — Parameterise row height** into a `Density` descriptor
+      (`LIST` 90px, `COMPACT` 48px) threaded through `AppContext` to
+      `ChannelList` and `ChannelListGeometry`. Geometry tests run at both
+      densities: the failure the module exists to prevent is silent, and a
+      suite pinned to 90px would pass while COMPACT was completely wrong.
+- [x] **Task 3.2 — Compact row rendering.** Number and name only, centred
+      rather than sitting on the upper of two lines. No logo: at 48px the box
+      is 62px wide, too small to recognise a broadcaster by, and dropping it
+      gives the name the full row width. One `isCompact` flag rather than
+      separate logo/event switches — a logo with no programme line leaves the
+      logo floating, and a programme line with no logo wastes the room it
+      needs, so they travel together.
+- [x] **Task 3.3 — Run the app** in both densities, including the bottom row,
+      a 3-channel category, and a before/after on the old clamp.
 
 ---
 
