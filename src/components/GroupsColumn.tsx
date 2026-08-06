@@ -79,12 +79,16 @@ const GroupsColumn = (props: {
                         event.stopPropagation();
                         props.onSelect(index);
                     }}
-                    // onMouseEnter rather than onMouseMove: the row is a plain
-                    // DOM element, so the browser already does the hit-testing
-                    // and fires once per row crossed. There is nothing to
-                    // throttle here - unlike the canvas list, where every
-                    // mousemove would otherwise repaint the whole thing.
-                    onMouseEnter={() => props.onHover && props.onHover(index)}
+                    // onMouseMove rather than onMouseEnter, which only fires on
+                    // crossing the row's boundary: a pointer already parked on
+                    // a row when the column *gains* focus would never correct
+                    // the cursor, and the next direction press would move from
+                    // somewhere the user is not looking. Unthrottled because
+                    // the browser does the hit-testing and React bails out of
+                    // re-rendering when the index is unchanged - unlike the
+                    // canvas list, where every mousemove would repaint
+                    // everything.
+                    onMouseMove={() => props.onHover && props.onHover(index)}
                 >
                     {entry.label}
                 </div>

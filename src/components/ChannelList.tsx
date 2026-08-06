@@ -19,6 +19,7 @@ import HoldGesture from '../utils/HoldGesture';
 import { channelPositionAt } from '../utils/ChannelListGeometry';
 import { channelInitials } from '../utils/ChannelInitials';
 import { createFrameThrottle } from '../utils/FrameThrottle';
+import { scrollThumb } from '../utils/ScrollIndicator';
 
 const VERTICAL_SCROLL_TOP_PADDING_ITEM = 5;
 const IS_DEBUG = false;
@@ -112,6 +113,15 @@ const ChannelList = (props: {
     // favorite star needed room to its left - see the favorite marker
     // comment in drawChannelItem for why this moved from 90 to 114.
     const mChannelLayoutNameLeft = 114;
+    // The scroll indicator's track runs down the right edge of the list, and
+    // the artwork column gives up mScrollIndicatorGutter to make room for it.
+    // mChannelArtRight is the single right edge every art-column calculation
+    // reads - the logo rect, the initials plate, and the name's maxWidth all
+    // derived it separately before, which is exactly how a long channel name
+    // ends up running underneath a logo.
+    const mScrollIndicatorWidth = 4;
+    const mScrollIndicatorGutter = 12;
+    const mChannelArtRight = mChannelLayoutWidth - mChannelLayoutMargin - mScrollIndicatorGutter;
 
     const [state, setState] = useState<State>(State.NORMAL);
     const [detailsState, setDetailsState] = useState<DetailsState>();
@@ -232,6 +242,46 @@ const ChannelList = (props: {
             // }
             drawChannelItem(canvas, pos);
         }
+
+        drawScrollIndicator(canvas);
+    };
+
+    /**
+     * The thumb down the right edge saying where these twelve rows sit in the
+     * lineup.
+     *
+     * The channel numbers do not answer that. They are the server's numbering,
+     * so they are neither contiguous nor tied to the filtered view - pick a
+     * category and they stop corresponding to a position at all.
+     *
+     * Drawn after the rows so it is never covered by artwork, and skipped
+     * entirely when everything fits, which is the common case once a small
+     * category is selected.
+     */
+    const drawScrollIndicator = (canvas: CanvasRenderingContext2D) => {
+        const thumb = scrollThumb({
+            contentHeight: epgData.getChannelCount() * mChannelLayoutHeight,
+            viewportHeight: getHeight() - mChannelListTopOffset,
+            scrollY: scrollY.current,
+            trackHeight: getHeight() - mChannelListTopOffset,
+            // ~14px at 908 channels without a floor, which is a smear from a
+            // sofa three metres away
+            minThumbHeight: 48
+        });
+        if (!thumb) {
+            return;
+        }
+
+        const left = mChannelLayoutWidth - mChannelLayoutMargin - mScrollIndicatorWidth;
+
+        // the track is drawn too: a thumb alone gives the position but not the
+        // scale, so there is no way to tell a third of the way down a short
+        // list from a third of the way down a very long one
+        canvas.fillStyle = withAlpha(getTheme().textSecondary, 0.14);
+        canvas.fillRect(left, mChannelListTopOffset, mScrollIndicatorWidth, getHeight() - mChannelListTopOffset);
+
+        canvas.fillStyle = withAlpha(getTheme().textSecondary, 0.6);
+        canvas.fillRect(left, mChannelListTopOffset + thumb.top, mScrollIndicatorWidth, thumb.height);
     };
 
     const drawChannelItem = (canvas: CanvasRenderingContext2D, position: number) => {
@@ -273,7 +323,7 @@ const ChannelList = (props: {
         // channel line
         const currentEvent = epgData.getEventAtTimestamp(position, EPGUtils.getNow());
         const channelIconWidth = mChannelLayoutHeight * 1.3;
-        const channelNameWidth = mChannelLayoutWidth - channelIconWidth - mChannelLayoutNameLeft;
+        const channelNameWidth = mChannelArtRight - channelIconWidth - mChannelLayoutNameLeft;
 
         const leftBeforeRecMark = drawingRect.left;
         // recording mark
@@ -328,7 +378,7 @@ const ChannelList = (props: {
 
             // channel event text
             const channelEventWidth =
-                mChannelLayoutWidth - channelIconWidth - mChannelLayoutNameLeft - channelEventProgressRect.width;
+                mChannelArtRight - channelIconWidth - mChannelLayoutNameLeft - channelEventProgressRect.width;
             CanvasUtils.writeText(
                 canvas,
                 currentEvent.getTitle(),
@@ -402,7 +452,7 @@ const ChannelList = (props: {
         }
 
         const size = mChannelLayoutHeight * 0.52;
-        const right = mChannelLayoutWidth - mChannelLayoutMargin - (mChannelLayoutHeight * 1.3 - size) / 2;
+        const right = mChannelArtRight - (mChannelLayoutHeight * 1.3 - size) / 2;
         const left = right - size;
         const top = getTopFrom(position) + (mChannelLayoutHeight - size) / 2;
 
@@ -419,7 +469,7 @@ const ChannelList = (props: {
 
     const getDrawingRectForChannelImage = (position: number, image: HTMLImageElement) => {
         const drawingRect = new Rect();
-        drawingRect.right = mChannelLayoutWidth - mChannelLayoutMargin;
+        drawingRect.right = mChannelArtRight;
         drawingRect.left = drawingRect.right - mChannelLayoutHeight * 1.3;
         drawingRect.top = getTopFrom(position);
         drawingRect.bottom = drawingRect.top + mChannelLayoutHeight;

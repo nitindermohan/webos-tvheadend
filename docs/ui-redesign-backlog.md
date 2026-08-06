@@ -19,6 +19,16 @@ broken on the remote and not just in a desktop browser:
 - Channel rows resolve to the row actually under the pointer, instead of
   always selecting whatever row the keyboard cursor was on (`52cbb2f`).
 
+~~**Hover states.**~~ **Done 2026-08-06 (Phase 2).** DOM rows carry
+`cursor`/`:hover`/`:active`; the channel list canvas resolves the row under the
+pointer through `ChannelListGeometry` and moves the cursor there, coalesced to
+one repaint per frame by `FrameThrottle`.
+
+~~**Keep pointer focus and D-pad focus in agreement.**~~ **Done 2026-08-06
+(Phase 2)**, for the channel list canvas and both groups columns. Hover in a
+groups column moves the cursor only while that column already owns focus, so a
+pointer drifting across it cannot take the cursor away from the list behind it.
+
 Still to do:
 
 - **Audit every remaining surface for the same class of defect.** The pattern
@@ -27,13 +37,15 @@ Still to do:
   of its own. `ChannelListDetails`' action rows and the category picker's rows
   already stop propagation; the EPG, the menu and the settings panels have not
   been checked.
-- **Hover states.** Nothing highlights under the pointer today, so there is no
-  feedback before clicking. Canvas-rendered surfaces need this hooked into the
-  draw loop, not CSS.
-- **Keep pointer focus and D-pad focus in agreement.** Clicking a rail pill now
-  moves rail focus to it; the same rule needs applying wherever both input
-  methods can move a cursor, or pressing a direction after clicking jumps from
-  a stale position.
+- **`TVGuide.handleClick` does not hit-test.** It zaps to
+  `focusedChannelPosition` wherever in the guide the click landed, so clicking
+  any programme block tunes whatever row the D-pad cursor happened to be on.
+  The channel list's equivalent was fixed in `52cbb2f`; the guide needs the
+  same treatment, but its hit-test is two-dimensional (channel *and* event),
+  and no pure geometry module exists for it yet.
+- **The EPG grid has no hover.** Phase 2 covered the channel list only, for the
+  same reason: `channelPositionAt` resolves a row, and there is no equivalent
+  for resolving an event within a row.
 - **Hit targets.** Pills and action rows are sized for a 10-foot D-pad UI, not
   for pointing. Review minimum target sizes.
 
@@ -145,9 +157,24 @@ The channel list and EPG are canvas-rendered with their own scroll model
 but there is no pointer-driven scrolling beyond that.
 
 - Drag-to-scroll / flick with the Magic Remote pointer.
-- A visible scrollbar or position indicator — there is currently no affordance
-  showing where you are in a 1000-channel lineup.
+- ~~A visible scrollbar or position indicator.~~ **Done 2026-08-06 (Phase 2)**
+  for the channel list — `ScrollIndicator.scrollThumb` plus a 4px track down
+  the right edge. Not done for the EPG.
 - Decide whether the same treatment applies to the EPG's horizontal time axis.
+
+**The list scrolls two rows past its own content.** Found by drawing the
+indicator, which made the dead space at the end obvious.
+`ChannelList.scrollToChannelPosition` clamps the bottom to
+`rowHeight * (channelCount - 2 * VERTICAL_SCROLL_TOP_PADDING_ITEM)` — for 91
+channels at 90px that is 7290, against a true maximum of
+`91*90 - 1080 = 7110`. So the last screen shows the final row followed by ~180px
+of empty canvas. The scroll thumb is *correct* there (it clamps, and you really
+are on the last channel), which is what makes the gap visible as a gap.
+
+Left for **Phase 3**, not fixed in Phase 2: the fix has to consult the viewport
+height, which that function does not do today, and Phase 3 parameterises this
+same function for the LIST/COMPACT densities. Fixing it now would mean writing
+the geometry test twice.
 
 ## Layout and visual items carried over
 
@@ -161,7 +188,7 @@ deferred as cosmetic:
 | ~~Empty-filter banner copy is fixed~~ | **Done.** The banner now reads "No channels in <category>" for a category filter and keeps the hold-OK hint only for favorites. |
 | Bottom row renders as a ~4px sliver | On a 1080-tall viewport, `86` is not a multiple of the 90px row height, so the last visible row is a thin strip. Consistent with the existing fade-in-while-scrolling design, but worth deciding on deliberately. |
 | Favorite star clearance is tight | The ★ sits in a 44px gap between the channel number (ends at x=70) and the name column (starts at x=114), with roughly 6px clear each side at an assumed ~32px glyph width. Never verified against real rendered glyph metrics. |
-| Channel name can overrun the logo | Worst case the name's right edge reaches x=783 against a logo starting at ~780, and x=810 on recording rows. Pre-existing; mitigated in practice by text truncation. |
+| Channel name can overrun the logo *on recording rows* | Half-fixed 2026-08-06 (Phase 2). Ordinary rows are now exact: the name's `maxWidth` derives from the same `mChannelArtRight` the logo box does, so its right edge lands on x=768 against a logo starting at x=768. Recording rows still overrun by 27px — the recording dot shifts the name's left edge right without shrinking its `maxWidth`, so it reaches x=795. Mitigated in practice by text truncation. |
 | Details panel lost channel browsing | ↑/↓ in the details panel now move between the two action rows rather than scrolling channels. Deliberate, but a capability was lost — reconsider in the redesign. |
 
 ## Found while running the app against fixtures (2026-08-06)

@@ -239,28 +239,54 @@ and `ChannelList`'s `BAR` and `DROPDOWN` states.
 
 ---
 
-## Phase 2 — Responsiveness
+## Phase 2 — Responsiveness — **DONE 2026-08-06**
+
+Landed as `de48640`, `87580f5` and the scroll-indicator commit. 218 tests,
+build clean at 215.64 kB.
 
 "Buttons and everything responsive" — every input produces immediate visible
-feedback, on canvas surfaces as well as DOM ones. This is where the UI stops
-feeling static.
+feedback, on canvas surfaces as well as DOM ones.
 
-- [ ] **Task 2.1 — DOM focus and press states.** Focus ring plus fill, and a
-      short press transition (~120ms). Applies to groups rows, details actions,
-      settings rows, the category picker.
-- [ ] **Task 2.2 — Canvas hover.** Today nothing highlights under the Magic
-      Remote pointer, so there is no feedback before clicking.
-      `ChannelListGeometry.channelPositionAt` already resolves a pointer
-      position to a row — feed it from `mousemove` and draw a hover fill.
-      **Throttle to the existing rAF loop**; redrawing the list on every
-      `mousemove` on a TV SoC will cost more than the feature is worth.
-- [ ] **Task 2.3 — Keep pointer focus and D-pad focus in agreement.** Moving
-      the pointer over a row must move the keyboard cursor there too, or the
-      next direction press jumps from a stale position. Already fixed for
-      clicks (`52cbb2f`); this extends it to hover.
-- [ ] **Task 2.4 — Scroll position indicator.** There is currently no
-      affordance showing where you are in a 908-channel lineup.
-- [ ] **Task 2.5 — Run the app** and drive it with the mouse specifically.
+**Tasks 2.2 and 2.3 collapsed into one.** They were written as a hover
+highlight plus a rule keeping it in step with the cursor, but those are the
+same mark: two highlights that must always agree about which row OK acts on is
+a bug waiting to happen, and when they disagree you get exactly the stale-focus
+problem 2.3 exists to prevent. Hover moves the cursor, and the cursor highlight
+*is* the hover feedback.
+
+**The non-obvious constraint:** hover must not scroll.
+`scrollToChannelPosition` pins the cursor to the sixth visible row, so
+re-pinning on hover yanks the list out from under the pointer, puts a different
+row beneath it, and yanks again on the next mousemove. Hover moves the cursor
+in place; the next direction press re-pins, so the list jumps once — bounded,
+and visibly a response to the key rather than to the pointer.
+
+**Found by drawing the indicator:** the list scrolls two rows past its own
+content, so the last screen ends in ~180px of empty canvas. Recorded in the
+backlog and left for Phase 3, which parameterises that same function for
+densities — fixing it now would mean writing the geometry test twice.
+
+- [x] **Task 2.1 — DOM focus and press states.** `cursor: pointer`, `:hover`
+      below `:focused` (so the pointer never restyles a row the D-pad already
+      owns), and `:active` with `transition-duration: 0s` — the press answers
+      instantly and only the release fades. A 120ms ease-in on the press itself
+      reads as lag once the remote has already spent a frame or two.
+- [x] **Task 2.2/2.3 — Canvas hover, moving the cursor.**
+      `FrameThrottle.createFrameThrottle` coalesces the mousemove burst to one
+      repaint per frame — the list is a megapixel of fill, text and image
+      blitting on a SoC that is also decoding video. Newest-value-wins is the
+      load-bearing half; keeping the value that opened the frame highlights a
+      row the pointer has already left.
+- [x] **Task 2.4 — Scroll position indicator.**
+      `ScrollIndicator.scrollThumb` plus a 4px track down the right edge. Both
+      clamps in it fire in normal use, not at pathological inputs: the list's
+      own scrollY overshoots its content, and a 908-channel thumb hits the
+      48px floor — where positioning by `progress * trackHeight` instead of
+      `progress * (trackHeight - height)` would leave it 48px short of the end.
+      The artwork column gave up 12px, and `mChannelArtRight` is now the single
+      right edge the logo box, the initials plate and the name's `maxWidth` all
+      read.
+- [x] **Task 2.5 — Run the app** and drive it with the mouse specifically.
 
 ---
 
