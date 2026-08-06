@@ -172,7 +172,19 @@ banner to `textSecondary`.
 
 ---
 
-## Phase 1 — The two-column layout
+## Phase 1 — The two-column layout — **DONE 2026-08-06**
+
+Landed as `e784248` and `2002bf2`. 199 tests, build clean at 215.19 kB.
+
+**What running it caught:** the document was 1089px against a 1080 viewport,
+and `GroupsColumn`'s `scrollIntoView` scrolled into those 9px and dragged the
+whole UI up, clipping the top channel row. `html, body { overflow: hidden }` -
+a TV app's page should never scroll. The old 86px bar had been hiding it.
+
+**Correction to the note below:** it claimed white-on-transparent logos vanish
+on black. Backwards - white on black is high contrast; it is *dark* logos on
+transparent that disappear. Initials now cover the missing-logo case; the
+dark-logo case still needs the real server (see Task 1.5).
 
 The structural change. `GROUPS | CHANNELS`, both persistent, no modal state.
 
@@ -191,13 +203,13 @@ The structural change. `GROUPS | CHANNELS`, both persistent, no modal state.
 column and becomes the shared one. **Retired:** the dropdown, `CategoryBar`,
 and `ChannelList`'s `BAR` and `DROPDOWN` states.
 
-- [ ] **Task 1.1 — `GroupsColumn.tsx`**, generalised from `EpgSidebar`.
+- [x] **Task 1.1 — `GroupsColumn.tsx`**, generalised from `EpgSidebar`.
       Exports `GROUPS_WIDTH = 280`. Props: entries, activeFilter,
       focusedIndex, isFocused, onSelect. Keeps `EpgSidebar`'s two proven
       details: `scrollIntoView({block:'nearest'})` on the focused row, and
       `stopPropagation` on the container so a click that misses a row does not
       fall through to the parent's zap handler.
-- [ ] **Task 1.2 — Re-anchor the channel list canvas.** This is the risky
+- [x] **Task 1.2 — Re-anchor the channel list canvas.** This is the risky
       step. Removing the 86px bar and adding a 280px column changes both
       origins: `getTopFrom` loses `mCategoryBarHeight`, and the canvas shifts
       right. Use the trick that already works in `TVGuide` — subtract
@@ -205,22 +217,24 @@ and `ChannelList`'s `BAR` and `DROPDOWN` states.
       leaving the grid's 0-origin coordinate space untouched.
       **`ChannelListGeometry.ts` and its tests change in this same commit.**
       Write the geometry test first, watch it fail, then move the constants.
-- [ ] **Task 1.3 — Rewire `ChannelList`'s state machine.** `NORMAL | DETAILS |
+- [x] **Task 1.3 — Rewire `ChannelList`'s state machine.** `NORMAL | DETAILS |
       GROUPS`. LEFT from the channel list enters the groups column; RIGHT
       leaves it; UP/DOWN walk whichever column has focus; OK applies a group
       and moves focus to the channels. Delete `applyCategoryAt`,
       `openDropdown`, `selectCategoryAt`, `barControl`, `dropdownIndex`.
-- [ ] **Task 1.4 — Point `TVGuide` at `GroupsColumn`**, deleting `EpgSidebar`.
+- [x] **Task 1.4 — Point `TVGuide` at `GroupsColumn`**, deleting `EpgSidebar`.
       The width constant it subtracts becomes `GROUPS_WIDTH`.
-- [ ] **Task 1.5 — Logo fallback.** On true black a white-on-transparent logo
-      vanishes, and a channel with no logo currently renders nothing. Decide
-      the fallback — a `surfaceCard` chip behind every logo, or initials drawn
-      for channels without one. **Cannot be judged in the harness** (fixtures'
-      logo URLs do not resolve); check against the real server.
-- [ ] **Task 1.6 — Delete `CategoryBar.tsx`.** Confirm no orphaned imports:
+- [x] **Task 1.5 — Logo fallback.** Done for the missing-logo case: initials
+      on a muted plate (`ChannelInitials`). **Still open, needs the real
+      server:** whether *dark* logos on transparent backgrounds disappear
+      against `#000`. The harness cannot answer it - every fixture logo URL
+      points at the original author's server and fails - and the fix if needed
+      is a light plate behind real logos too, which is a one-line change to
+      `drawChannelInitials`' sibling branch.
+- [x] **Task 1.6 — Delete `CategoryBar.tsx`.** Confirm no orphaned imports:
       CRA's eslint catches these inside `npm run build` and nowhere else.
       This exact class of error has broken a push here before.
-- [ ] **Task 1.7 — Run the app.** Walk both columns, both screens, with keys
+- [x] **Task 1.7 — Run the app.** Walk both columns, both screens, with keys
       *and* with the pointer.
 
 ---
