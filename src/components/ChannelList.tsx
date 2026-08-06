@@ -895,6 +895,11 @@ const ChannelList = (props: {
                 focusedIndex={groupsIndex}
                 isFocused={state === State.GROUPS}
                 onSelect={selectGroupAt}
+                // only while the column already owns focus. A pointer drifting
+                // across it must not silently take the cursor away from the
+                // channel list behind it - the user would press DOWN expecting
+                // a channel and get a category.
+                onHover={(index) => state === State.GROUPS && setGroupsIndex(index)}
             />
 
             {epgData.isFilterEmpty() && (

@@ -37,6 +37,16 @@ const GroupsColumn = (props: {
     focusedIndex: number;
     isFocused: boolean;
     onSelect: (index: number) => void;
+    /**
+     * The pointer moved onto a row.
+     *
+     * Kept separate from onSelect because hovering must not apply a filter -
+     * it only moves the cursor, and only if the host decides the column owns
+     * focus. Leaving the cursor where the D-pad last put it while the pointer
+     * sits somewhere else means the next direction press jumps from a position
+     * the user is no longer looking at.
+     */
+    onHover?: (index: number) => void;
     /** Extra classes on the container, for per-screen positioning. */
     className?: string;
 }) => (
@@ -69,6 +79,12 @@ const GroupsColumn = (props: {
                         event.stopPropagation();
                         props.onSelect(index);
                     }}
+                    // onMouseEnter rather than onMouseMove: the row is a plain
+                    // DOM element, so the browser already does the hit-testing
+                    // and fires once per row crossed. There is nothing to
+                    // throttle here - unlike the canvas list, where every
+                    // mousemove would otherwise repaint the whole thing.
+                    onMouseEnter={() => props.onHover && props.onHover(index)}
                 >
                     {entry.label}
                 </div>

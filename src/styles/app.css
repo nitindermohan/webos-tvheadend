@@ -281,6 +281,45 @@ body {
     padding: 10px;
 }
 
+/* Every row a user can act on answers back.
+
+   Three separate signals, deliberately not collapsed into one:
+
+   - `cursor: pointer` says "this is actionable" before anything is pressed.
+     The Magic Remote draws a real system cursor, so this is the only
+     affordance that works while the pointer is merely passing over.
+   - `:hover` is the pointer's equivalent of the D-pad's focus ring.
+   - `:active` is the press itself.
+
+   The transition is on the *release*, not the press: `:active` zeroes the
+   duration so the row answers the instant it is pressed, and the 120ms fade
+   only plays on the way back out. A press that eases in by 120ms reads as lag
+   on a TV, where the remote already costs a frame or two of its own. */
+.groupsColumnItem,
+.detailsAction,
+.categoryRow {
+    cursor: pointer;
+    transition: background-color 120ms ease-out, color 120ms ease-out, border-color 120ms ease-out;
+}
+
+.groupsColumnItem:active,
+.detailsAction:active,
+.categoryRow:active {
+    transition-duration: 0s;
+    background-color: rgba(var(--accent-rgb), 0.34);
+    color: var(--text-primary);
+}
+
+/* Hover sits below focus: a row the D-pad has already landed on must not be
+   restyled by the pointer merely passing over it, or the cursor appears to be
+   in two places at once. */
+.groupsColumnItem:hover:not(.focused),
+.detailsAction:hover:not(.focused),
+.categoryRow:hover:not(.focused) {
+    color: var(--text-primary);
+    background-color: rgba(var(--text-secondary-rgb), 0.14);
+}
+
 /* The persistent category column, shared by the channel list and the EPG.
 
    Its width is set inline from GroupsColumn.GROUPS_WIDTH and must not be

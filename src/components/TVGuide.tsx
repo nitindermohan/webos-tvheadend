@@ -1118,6 +1118,9 @@ const TVGuide = (props: {
                 focusedIndex={groupsIndex}
                 isFocused={isGroupsFocused}
                 onSelect={applyGroupAt}
+                // see the identical guard in ChannelList: hover moves the
+                // cursor only in the column that already has it
+                onHover={(index) => isGroupsFocused && setGroupsIndex(index)}
             />
 
             {/* shifted right by exactly the width getWidth() subtracts, so the
