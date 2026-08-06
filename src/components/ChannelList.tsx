@@ -8,12 +8,12 @@ import ChannelListDetails from './ChannelListDetails';
 import EPGEvent from '../models/EPGEvent';
 import EPGChannel from '../models/EPGChannel';
 import EPGUtils from '../utils/EPGUtils';
-import CategoryBar, { BAR_HEIGHT, BarControl } from './CategoryBar';
-import { buildCategoryEntries, FilterEntry, indexOfFilter, labelForFilter } from '../utils/FilterEntries';
+import GroupsColumn, { GROUPS_WIDTH } from './GroupsColumn';
+import { buildFilterEntries, FilterEntry, indexOfFilter, labelForFilter } from '../utils/FilterEntries';
 import { wrapIndex } from '../utils/ListNavigation';
 import CategoryStore from '../utils/CategoryStore';
 import RemoteKeys from '../utils/RemoteKeys';
-import ChannelFilter, { FAVORITE_CHANNELS } from '../models/ChannelFilter';
+import ChannelFilter from '../models/ChannelFilter';
 import FavoritesStore from '../utils/FavoritesStore';
 import HoldGesture from '../utils/HoldGesture';
 import { channelPositionAt } from '../utils/ChannelListGeometry';
@@ -24,10 +24,8 @@ const IS_DEBUG = false;
 enum State {
     NORMAL = 'normal',
     DETAILS = 'details',
-    /** Focus is on one of the two header controls. */
-    BAR = 'bar',
-    /** The category dropdown is expanded and owns up/down. */
-    DROPDOWN = 'dropdown'
+    /** Focus is in the category column beside the list, which owns up/down. */
+    GROUPS = 'groups'
 }
 
 interface DetailsState {
@@ -90,12 +88,13 @@ const ChannelList = (props: {
     const mChannelLayoutBackgroundFocus = withAlpha(getTheme().surfaceCard, 0.96);
     const mChannelLayoutSelectionMarker = getTheme().accent;
     const mChannelLayoutSelectionMarkerWidth = 6;
-    // the category bar's height, which is also the y-origin of row 0. Owned by
-    // CategoryBar (which pins itself to exactly this) rather than guessed here,
-    // because getTopFrom and the pointer hit-test below both derive from it -
-    // a bar whose real height drifted from this number would put the drawn rows
-    // and the click targets out of step.
-    const mCategoryBarHeight = BAR_HEIGHT;
+    // The y-origin of row 0. Zero now that the categories are a column beside
+    // the list rather than a bar above it, so rows start at the canvas top.
+    // Kept named and threaded through rather than inlined as 0, because
+    // getTopFrom and ChannelListGeometry's pointer hit-test must both use it -
+    // the two drifting apart puts drawn rows and click targets out of step,
+    // silently.
+    const mChannelListTopOffset = 0;
     // x-offset of the name column (channel name, recording mark, event
     // progress bar + text) from the row's left edge. Was a bare 90 in three
     // places (plus the two derived width calculations below) until the
@@ -106,13 +105,15 @@ const ChannelList = (props: {
     const [state, setState] = useState<State>(State.NORMAL);
     const [detailsState, setDetailsState] = useState<DetailsState>();
 
-    const categoryEntries: FilterEntry[] = buildCategoryEntries(channelTags, CategoryStore.getSelectedTagUuids());
-    const [barControl, setBarControl] = useState<BarControl>('category');
-    const [dropdownIndex, setDropdownIndex] = useState(() => Math.max(0, indexOfFilter(categoryEntries, activeFilter)));
+    // Favourites is a row here now, not a control of its own - the single
+    // column has nowhere else to put it, and it means the channel list and the
+    // EPG offer exactly the same list in the same order.
+    const groupEntries: FilterEntry[] = buildFilterEntries(channelTags, CategoryStore.getSelectedTagUuids());
+    const [groupsIndex, setGroupsIndex] = useState(() => Math.max(0, indexOfFilter(groupEntries, activeFilter)));
     const [detailsActionIndex, setDetailsActionIndex] = useState(0);
 
     const getTopFrom = (position: number) => {
-        const y = position * mChannelLayoutHeight + mCategoryBarHeight;
+        const y = position * mChannelLayoutHeight + mChannelListTopOffset;
         return y - scrollY.current;
     };
 
@@ -412,9 +413,7 @@ const ChannelList = (props: {
 
     const getLastVisibleChannelPosition = () => {
         const y = scrollY.current;
-        // rows start mCategoryBarHeight lower than the canvas top, so that much
-        // less vertical space is actually available for them to render into
-        const screenHeight = getHeight() - mCategoryBarHeight;
+        const screenHeight = getHeight() - mChannelListTopOffset;
         let position = Math.floor((y + screenHeight) / mChannelLayoutHeight);
 
         const channelCount = epgData.getChannelCount();
@@ -452,65 +451,32 @@ const ChannelList = (props: {
     const handleKeyPress = (event: React.KeyboardEvent<HTMLDivElement>) => {
         const keyCode = event.keyCode;
 
-        if (state === State.BAR) {
+        if (state === State.GROUPS) {
             switch (keyCode) {
-                // the two header controls sit side by side, favorites first
-                case RemoteKeys.ARROW_LEFT:
+                case RemoteKeys.ARROW_UP:
                     event.stopPropagation();
-                    setBarControl('favorites');
-                    return;
-                case RemoteKeys.ARROW_RIGHT:
-                    event.stopPropagation();
-                    setBarControl('category');
-                    return;
-                case RemoteKeys.OK:
-                    event.stopPropagation();
-                    // favorites is a one-press control - it applies its filter
-                    // directly rather than being a row inside the dropdown
-                    barControl === 'favorites' ? applyFilter(FAVORITE_CHANNELS) : openDropdown();
+                    setGroupsIndex(wrapIndex(groupsIndex, groupEntries.length, -1));
                     return;
                 case RemoteKeys.ARROW_DOWN:
+                    event.stopPropagation();
+                    setGroupsIndex(wrapIndex(groupsIndex, groupEntries.length, 1));
+                    return;
+                case RemoteKeys.OK:
+                case RemoteKeys.ARROW_RIGHT:
+                    // right doubles as "apply and get back to the channels", so
+                    // the whole gesture is left-pick-right without ever
+                    // reaching for OK
+                    event.stopPropagation();
+                    applyGroupAt(groupsIndex);
+                    return;
+                case RemoteKeys.ARROW_LEFT:
+                    // already the leftmost column - swallow rather than let the
+                    // list handler act on it
+                    event.stopPropagation();
+                    return;
                 case RemoteKeys.BACK:
                     event.stopPropagation();
                     setState(State.NORMAL);
-                    return;
-                case RemoteKeys.ARROW_UP:
-                    // already at the top of the screen - swallow it rather than
-                    // letting the list handler bounce focus back into the bar
-                    event.stopPropagation();
-                    return;
-                case RemoteKeys.CHANNEL_UP:
-                case RemoteKeys.CHANNEL_DOWN:
-                    // fall through to the normal handler so zapping always works
-                    break;
-                default:
-                    break;
-            }
-        }
-
-        if (state === State.DROPDOWN) {
-            switch (keyCode) {
-                case RemoteKeys.ARROW_UP:
-                    event.stopPropagation();
-                    setDropdownIndex(wrapIndex(dropdownIndex, categoryEntries.length, -1));
-                    return;
-                case RemoteKeys.ARROW_DOWN:
-                    event.stopPropagation();
-                    setDropdownIndex(wrapIndex(dropdownIndex, categoryEntries.length, 1));
-                    return;
-                case RemoteKeys.OK:
-                    event.stopPropagation();
-                    applyCategoryAt(dropdownIndex);
-                    return;
-                case RemoteKeys.BACK:
-                case RemoteKeys.ARROW_LEFT:
-                    event.stopPropagation();
-                    setState(State.BAR);
-                    return;
-                case RemoteKeys.ARROW_RIGHT:
-                    // swallowed: right must not open the details panel from
-                    // behind an expanded dropdown
-                    event.stopPropagation();
                     return;
                 case RemoteKeys.CHANNEL_UP:
                 case RemoteKeys.CHANNEL_DOWN:
@@ -600,9 +566,13 @@ const ChannelList = (props: {
                     // switch to previous event details
                     focusedEventOffset.current -= 1;
                     setDetailsData();
-                } else {
+                } else if (state === State.DETAILS) {
                     // hide channelListDetails
                     setState(State.NORMAL);
+                } else {
+                    // one continuous leftward axis: details -> channels ->
+                    // categories, so left always means "step out one level"
+                    enterGroups();
                 }
                 break;
             case RemoteKeys.GUIDE:
@@ -699,7 +669,7 @@ const ChannelList = (props: {
             return -1;
         }
         return channelPositionAt(clientY - bounds.top, {
-            railHeight: mCategoryBarHeight,
+            topOffset: mChannelListTopOffset,
             rowHeight: mChannelLayoutHeight,
             scrollY: scrollY.current,
             channelCount: epgData.getChannelCount()
@@ -720,12 +690,12 @@ const ChannelList = (props: {
     };
 
     const scrollUp = () => {
+        // Up at the top row wraps to the bottom, mirroring scrollDown. It used
+        // to move focus into the category bar; the categories now live in a
+        // column reached with left, so the vertical axis belongs entirely to
+        // the channels.
         if (channelPosition.current === 0) {
-            // at the top row, move focus into the category bar. Land on the
-            // control that owns the active filter, so the first thing focused
-            // is the one describing what is on screen
-            setBarControl(activeFilter.kind === 'favorites' ? 'favorites' : 'category');
-            setState(State.BAR);
+            setChannelPosition(epgData.getChannelCount() - 1);
         } else {
             setChannelPosition(channelPosition.current - 1);
         }
@@ -740,25 +710,22 @@ const ChannelList = (props: {
         setState(State.NORMAL);
     };
 
-    const applyCategoryAt = (index: number) => {
-        const entry = categoryEntries[index];
+    const applyGroupAt = (index: number) => {
+        const entry = groupEntries[index];
         entry ? applyFilter(entry.filter) : setState(State.NORMAL);
     };
 
-    const openDropdown = () => {
-        // open on the active category rather than wherever the cursor was left
-        setDropdownIndex(Math.max(0, indexOfFilter(categoryEntries, activeFilter)));
-        // the pointer can open the dropdown without focus ever passing through
-        // the bar - make sure backing out of it lands on the control it came
-        // from rather than whichever one the keyboard last touched
-        setBarControl('category');
-        setState(State.DROPDOWN);
+    const enterGroups = () => {
+        // land on the row describing what is currently on screen rather than
+        // wherever the cursor was left, so the column always opens oriented
+        setGroupsIndex(Math.max(0, indexOfFilter(groupEntries, activeFilter)));
+        setState(State.GROUPS);
     };
 
-    /** Pointer path: the Magic Remote has a cursor, so the controls are clickable. */
-    const selectCategoryAt = (index: number) => {
-        setDropdownIndex(index);
-        applyCategoryAt(index);
+    /** Pointer path: the Magic Remote has a cursor, so the rows are clickable. */
+    const selectGroupAt = (index: number) => {
+        setGroupsIndex(index);
+        applyGroupAt(index);
     };
 
     const scrollDown = () => {
@@ -863,13 +830,13 @@ const ChannelList = (props: {
     useEffect(() => {
         // activeFilter can change from outside this component (the background
         // tag load re-applying the persisted filter, the first-run picker) -
-        // keep the dropdown's cursor on the category that is actually active
-        // rather than the one it happened to start on. Up/Down inside the
-        // dropdown never touch activeFilter, so this cannot fight with the user
-        // moving between rows.
-        const index = indexOfFilter(categoryEntries, activeFilter);
+        // keep the column's cursor on the row that is actually active rather
+        // than the one it happened to start on. Up/Down inside the column never
+        // touch activeFilter, so this cannot fight with the user moving between
+        // rows.
+        const index = indexOfFilter(groupEntries, activeFilter);
         if (index >= 0) {
-            setDropdownIndex(index);
+            setGroupsIndex(index);
         }
     }, [activeFilter, channelTags]);
 
@@ -884,26 +851,31 @@ const ChannelList = (props: {
             onClick={handleClick}
             className="channelList"
         >
-            <CategoryBar
-                categoryEntries={categoryEntries}
+            <GroupsColumn
+                entries={groupEntries}
                 activeFilter={activeFilter}
-                focusedControl={state === State.BAR ? barControl : undefined}
-                isDropdownOpen={state === State.DROPDOWN}
-                dropdownIndex={dropdownIndex}
-                onSelectFavorites={() => applyFilter(FAVORITE_CHANNELS)}
-                onOpenDropdown={() => (state === State.DROPDOWN ? setState(State.NORMAL) : openDropdown())}
-                onSelectCategory={selectCategoryAt}
+                focusedIndex={groupsIndex}
+                isFocused={state === State.GROUPS}
+                onSelect={selectGroupAt}
             />
 
             {epgData.isFilterEmpty() && (
                 <div className="channelListEmptyBanner" onClick={(event) => event.stopPropagation()}>
                     {activeFilter.kind === 'favorites'
                         ? 'No favorites yet — hold OK on a channel to add it'
-                        : 'No channels in ' + labelForFilter(categoryEntries, activeFilter)}
+                        : 'No channels in ' + labelForFilter(groupEntries, activeFilter)}
                 </div>
             )}
 
-            <canvas ref={canvas} width={getWidth()} height={getHeight()} style={{ display: 'block' }} />
+            <canvas
+                ref={canvas}
+                width={getWidth()}
+                height={getHeight()}
+                // shifted right by exactly the column's width, so the grid's own
+                // coordinate space still starts at 0 and nothing in the draw
+                // code has to know the column exists
+                style={{ display: 'block', marginLeft: GROUPS_WIDTH }}
+            />
 
             {state === State.DETAILS && (
                 <ChannelListDetails

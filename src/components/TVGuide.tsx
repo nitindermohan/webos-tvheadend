@@ -12,7 +12,7 @@ import AppContext from '../AppContext';
 import RemoteKeys from '../utils/RemoteKeys';
 import { visibleEvents } from '../utils/EventWindow';
 import DialogPopup from './DialogPopup';
-import EpgSidebar, { SIDEBAR_WIDTH } from './EpgSidebar';
+import GroupsColumn, { GROUPS_WIDTH } from './GroupsColumn';
 import { buildFilterEntries, indexOfFilter } from '../utils/FilterEntries';
 import { wrapIndex } from '../utils/ListNavigation';
 import CategoryStore from '../utils/CategoryStore';
@@ -65,9 +65,9 @@ const TVGuide = (props: {
     // The category sidebar. It is always on screen - the grid is drawn into the
     // remaining width rather than being overlapped - so it needs no open/close
     // state, only whether it holds focus and which row the cursor is on.
-    const sidebarEntries = buildFilterEntries(channelTags, CategoryStore.getSelectedTagUuids());
-    const [isSidebarFocused, setSidebarFocused] = useState(false);
-    const [sidebarIndex, setSidebarIndex] = useState(() => Math.max(0, indexOfFilter(sidebarEntries, activeFilter)));
+    const groupEntries = buildFilterEntries(channelTags, CategoryStore.getSelectedTagUuids());
+    const [isGroupsFocused, setGroupsFocused] = useState(false);
+    const [groupsIndex, setGroupsIndex] = useState(() => Math.max(0, indexOfFilter(groupEntries, activeFilter)));
 
     const mDrawingRect = new Rect();
     const mMeasuringRect = new Rect();
@@ -188,12 +188,12 @@ const TVGuide = (props: {
      * The width the *grid* gets, which is the screen minus the category
      * sidebar. Every x-coordinate in this file is derived from this (directly,
      * or through getXFrom/calculateMillisPerPixel), and the canvas element is
-     * sized to it and shifted right by SIDEBAR_WIDTH in the markup below - so
+     * sized to it and shifted right by GROUPS_WIDTH in the markup below - so
      * the grid keeps drawing into a space whose origin is 0 and the sidebar
      * never overlaps it. That is the whole reason one constant is enough here.
      */
     const getWidth = () => {
-        return window.innerWidth - SIDEBAR_WIDTH;
+        return window.innerWidth - GROUPS_WIDTH;
     };
 
     const getHeight = () => {
@@ -780,24 +780,24 @@ const TVGuide = (props: {
             }
         }
 
-        if (isSidebarFocused) {
+        if (isGroupsFocused) {
             switch (keyCode) {
                 case RemoteKeys.ARROW_UP:
                     event.stopPropagation();
-                    setSidebarIndex(wrapIndex(sidebarIndex, sidebarEntries.length, -1));
+                    setGroupsIndex(wrapIndex(groupsIndex, groupEntries.length, -1));
                     return;
                 case RemoteKeys.ARROW_DOWN:
                     event.stopPropagation();
-                    setSidebarIndex(wrapIndex(sidebarIndex, sidebarEntries.length, 1));
+                    setGroupsIndex(wrapIndex(groupsIndex, groupEntries.length, 1));
                     return;
                 case RemoteKeys.OK:
                     event.stopPropagation();
-                    applySidebarFilter(sidebarIndex);
+                    applyGroupAt(groupsIndex);
                     return;
                 case RemoteKeys.ARROW_RIGHT:
                 case RemoteKeys.ARROW_LEFT:
                     event.stopPropagation();
-                    setSidebarFocused(false);
+                    setGroupsFocused(false);
                     return;
                 case RemoteKeys.CHANNEL_UP:
                 case RemoteKeys.CHANNEL_DOWN:
@@ -828,7 +828,7 @@ const TVGuide = (props: {
                     // against the left wall of this channel's timeline. Stepping
                     // out into the sidebar costs nothing: scrollToEventPosition
                     // clamps at 0, so this press used to do nothing at all.
-                    enterSidebar();
+                    enterGroups();
                     break;
                 }
                 if (eventPosition < 0) {
@@ -899,7 +899,7 @@ const TVGuide = (props: {
         let channelPosition = focusedChannelPosition.current;
         if (channelPosition === 0) {
             if (allowSidebar) {
-                enterSidebar();
+                enterGroups();
                 return;
             }
             channelPosition = epgData.getChannelCount();
@@ -908,18 +908,18 @@ const TVGuide = (props: {
         scrollToChannelPosition(channelPosition, false);
     };
 
-    const enterSidebar = () => {
+    const enterGroups = () => {
         // open on the active filter rather than wherever the cursor was left
-        setSidebarIndex(Math.max(0, indexOfFilter(sidebarEntries, activeFilter)));
-        setSidebarFocused(true);
+        setGroupsIndex(Math.max(0, indexOfFilter(groupEntries, activeFilter)));
+        setGroupsFocused(true);
     };
 
-    const applySidebarFilter = (index: number) => {
-        const entry = sidebarEntries[index];
+    const applyGroupAt = (index: number) => {
+        const entry = groupEntries[index];
         // AppContext pins the playing channel across the change, so switching
         // category here never interrupts what is playing behind the guide
         entry && setActiveFilter(entry.filter);
-        setSidebarFocused(false);
+        setGroupsFocused(false);
     };
 
     const scrollDown = () => {
@@ -1112,12 +1112,12 @@ const TVGuide = (props: {
             onClick={handleClick}
             className="epg"
         >
-            <EpgSidebar
-                entries={sidebarEntries}
+            <GroupsColumn
+                entries={groupEntries}
                 activeFilter={activeFilter}
-                focusedIndex={sidebarIndex}
-                isFocused={isSidebarFocused}
-                onSelect={applySidebarFilter}
+                focusedIndex={groupsIndex}
+                isFocused={isGroupsFocused}
+                onSelect={applyGroupAt}
             />
 
             {/* shifted right by exactly the width getWidth() subtracts, so the
@@ -1125,7 +1125,7 @@ const TVGuide = (props: {
             <div
                 className="programguide-contents"
                 ref={programguideContents}
-                style={{ marginLeft: SIDEBAR_WIDTH }}
+                style={{ marginLeft: GROUPS_WIDTH }}
             >
                 <canvas ref={canvas} width={getWidth()} height={getHeight()} style={{ display: 'block' }} />
             </div>

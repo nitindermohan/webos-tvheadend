@@ -5,6 +5,7 @@ import kind from '@enact/core/kind';
 import MoonstoneDecorator from '@enact/moonstone/MoonstoneDecorator';
 import { AppContextProvider } from './AppContext';
 import { applyTheme, OLED_BLACK } from './utils/Theme';
+import { GROUPS_WIDTH } from './components/GroupsColumn';
 
 // Bundled in the ipk rather than relying on a system font, so metrics and
 // glyph coverage are ours and not the TV's.
@@ -30,6 +31,13 @@ import '@fontsource/inter/latin-ext-700.css';
 // hardcoding the palette; everything downstream already goes through
 // getTheme(), so that stays a one-line change.
 applyTheme(OLED_BLACK);
+
+// The groups column has the same two-consumer problem as the palette: the
+// components size themselves from the constant, while the stylesheet needs the
+// number to lay out everything sitting to its right. Publishing it once here
+// keeps the two from drifting - a hardcoded 280px in app.css would silently
+// stop matching the moment the constant moved.
+document.documentElement.style.setProperty('--groups-width', GROUPS_WIDTH + 'px');
 
 const AppBase = kind({
     name: 'App',
