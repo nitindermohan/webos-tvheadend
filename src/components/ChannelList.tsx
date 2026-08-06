@@ -20,6 +20,7 @@ import { channelPositionAt, scrollTargetFor } from '../utils/ChannelListGeometry
 import { channelInitials } from '../utils/ChannelInitials';
 import { createFrameThrottle } from '../utils/FrameThrottle';
 import { scrollThumb } from '../utils/ScrollIndicator';
+import { advanceScroll } from '../utils/ScrollAnimation';
 
 const VERTICAL_SCROLL_TOP_PADDING_ITEM = 5;
 const IS_DEBUG = false;
@@ -178,21 +179,22 @@ const ChannelList = (props: {
     };
 
     const animateScroll = (scrollDelta: number, scrollTarget: number) => {
-        if (scrollDelta < 0 && scrollY.current <= scrollTarget) {
-            //this.scrollY = scrollTarget;
+        // The arrival rule lives in ScrollAnimation so it can be tested by
+        // running a whole animation to completion - the defect it fixes is a
+        // drift that only shows up in where the last frame lands. Both of the
+        // old branches carried `scrollY = scrollTarget` commented out;
+        // presumably it read as a no-op, because correcting the offset without
+        // a repaint changes nothing on screen.
+        const step = advanceScroll(scrollY.current, scrollDelta, scrollTarget);
+        scrollY.current = step.scrollY;
+
+        if (step.done) {
             cancelAnimationFrame(scrollAnimationId.current);
-            return;
+        } else {
+            scrollAnimationId.current = requestAnimationFrame(() => {
+                animateScroll(scrollDelta, scrollTarget);
+            });
         }
-        if (scrollDelta > 0 && scrollY.current >= scrollTarget) {
-            //this.scrollY = scrollTarget;
-            cancelAnimationFrame(scrollAnimationId.current);
-            return;
-        }
-        //console.log("scrolldelta=%d, scrolltarget=%d, scrollY=%d", scrollDelta, scrollTarget, this.scrollY);
-        scrollY.current = scrollY.current + scrollDelta;
-        scrollAnimationId.current = requestAnimationFrame(() => {
-            animateScroll(scrollDelta, scrollTarget);
-        });
         updateCanvas();
     };
 
