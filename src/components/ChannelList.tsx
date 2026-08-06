@@ -17,6 +17,7 @@ import ChannelFilter from '../models/ChannelFilter';
 import FavoritesStore from '../utils/FavoritesStore';
 import HoldGesture from '../utils/HoldGesture';
 import { channelPositionAt } from '../utils/ChannelListGeometry';
+import { channelInitials } from '../utils/ChannelInitials';
 
 const VERTICAL_SCROLL_TOP_PADDING_ITEM = 5;
 const IS_DEBUG = false;
@@ -331,7 +332,7 @@ const ChannelList = (props: {
             );
         }
 
-        // channel logo
+        // channel logo, or initials standing in for one
         const imageURL = channel.getImageURL();
         const image = imageURL && imageCache.get(imageURL);
         if (image !== undefined) {
@@ -341,6 +342,13 @@ const ChannelList = (props: {
             const scaled = imageCache.getScaled(imageURL, channelImageRect.width, channelImageRect.height);
             scaled && canvas.drawImage(scaled, channelImageRect.left, channelImageRect.top);
             IS_DEBUG && CanvasUtils.drawDebugRect(canvas, channelImageRect);
+        } else {
+            // Without this the right ~120px of the row is simply empty, which
+            // on black reads as a broken row rather than a channel without
+            // artwork. Covers both "this channel has no logo" and "the logo has
+            // not arrived yet" - LogoCache bumps logoVersion when one does, and
+            // the row redraws with the real image.
+            drawChannelInitials(canvas, position, channel.getName());
         }
 
         // favorite marker - placed in the gap between the right-aligned channel
@@ -367,6 +375,36 @@ const ChannelList = (props: {
                 isBold: true
             });
         }
+    };
+
+    /**
+     * The stand-in for a missing logo: the channel's initials on a muted plate,
+     * occupying the same box the logo would have.
+     *
+     * A plate rather than bare text because the initials must not be mistaken
+     * for content - they sit where artwork belongs, and a flat rectangle reads
+     * as "nothing here yet" in a way floating letters do not.
+     */
+    const drawChannelInitials = (canvas: CanvasRenderingContext2D, position: number, name: string) => {
+        const initials = channelInitials(name);
+        if (!initials) {
+            return;
+        }
+
+        const size = mChannelLayoutHeight * 0.52;
+        const right = mChannelLayoutWidth - mChannelLayoutMargin - (mChannelLayoutHeight * 1.3 - size) / 2;
+        const left = right - size;
+        const top = getTopFrom(position) + (mChannelLayoutHeight - size) / 2;
+
+        canvas.fillStyle = withAlpha(getTheme().textSecondary, 0.14);
+        canvas.fillRect(left, top, size, size);
+
+        CanvasUtils.writeText(canvas, initials, left + size / 2, top + size / 2, {
+            fontSize: mChannelLayoutEventTextSize,
+            textAlign: 'center',
+            fillStyle: getTheme().textSecondary,
+            isBold: true
+        });
     };
 
     const getDrawingRectForChannelImage = (position: number, image: HTMLImageElement) => {

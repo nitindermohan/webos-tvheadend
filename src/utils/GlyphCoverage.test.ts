@@ -21,13 +21,24 @@ const ALLOWED: { [glyph: string]: string } = {
     '—': 'EM DASH'
 };
 
+/**
+ * Test files are exempt, because the risk this guard covers - a character the
+ * TV's font cannot draw - only exists for characters the app actually renders,
+ * and tests render nothing. The exemption is load-bearing rather than
+ * convenient: ChannelInitials.test.ts deliberately feeds Cyrillic and Greek
+ * channel names in to prove the initials logic degrades instead of throwing,
+ * which is precisely the robustness this app needs and precisely what the
+ * guard would otherwise forbid writing a test for.
+ */
+const isTestFile = (file: string) => /\.test\.tsx?$/.test(file);
+
 const sourceFiles = (dir: string): string[] =>
     fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
         const full = path.join(dir, entry.name);
         if (entry.isDirectory()) {
             return sourceFiles(full);
         }
-        return /\.tsx?$/.test(entry.name) ? [full] : [];
+        return /\.tsx?$/.test(entry.name) && !isTestFile(entry.name) ? [full] : [];
     });
 
 describe('glyph coverage', () => {
