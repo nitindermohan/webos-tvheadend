@@ -18,6 +18,7 @@ import FavoritesStore from '../utils/FavoritesStore';
 import HoldGesture from '../utils/HoldGesture';
 import { channelPositionAt } from '../utils/ChannelListGeometry';
 import { channelInitials } from '../utils/ChannelInitials';
+import { createFrameThrottle } from '../utils/FrameThrottle';
 
 const VERTICAL_SCROLL_TOP_PADDING_ITEM = 5;
 const IS_DEBUG = false;
@@ -71,6 +72,15 @@ const ChannelList = (props: {
     // separate, independently tested class rather than inline refs.
     const onToggleFavoriteRef = useRef<() => void>(() => undefined);
     const holdGesture = useRef(new HoldGesture(600, () => onToggleFavoriteRef.current()));
+
+    // pointer hover, coalesced to one repaint per frame. Same trampoline
+    // arrangement as the hold gesture above and for the same reason: the
+    // throttle is created once and must always call the *current* render's
+    // handler, which closes over `state` and the epg data.
+    const onHoverPointRef = useRef<(point: { x: number; y: number }) => void>(() => undefined);
+    const hoverThrottle = useRef(
+        createFrameThrottle<{ x: number; y: number }>((point) => onHoverPointRef.current(point))
+    );
 
     const mChannelLayoutTextSize = 32;
     const mChannelLayoutEventTextSize = 26;
@@ -714,6 +724,47 @@ const ChannelList = (props: {
         });
     };
 
+    /**
+     * The pointer moved over the list: put the cursor on the row under it.
+     *
+     * Hover and the D-pad cursor are the same thing here rather than two
+     * highlights. Drawing a separate hover fill would mean two marks on screen
+     * that must always agree about which row OK will act on - and when they
+     * disagree, the next direction press moves from a row the user is no
+     * longer looking at. One mark, one meaning.
+     *
+     * Deliberately does *not* scroll. `scrollToChannelPosition` pins the
+     * cursor to the sixth visible row, so re-pinning here would yank the list
+     * out from under the pointer, putting a different row beneath it, which on
+     * the next mousemove yanks it again. The accepted consequence is that the
+     * next direction press re-pins and the list jumps once - bounded, and
+     * visibly a response to the key rather than to the pointer.
+     */
+    const handleHoverAt = (point: { x: number; y: number }) => {
+        const position = channelPositionAtPoint(point.x, point.y);
+
+        // the cursor shape is the only affordance available before the pointer
+        // stops moving, and it costs nothing
+        if (canvas.current) {
+            canvas.current.style.cursor = position < 0 ? 'default' : 'pointer';
+        }
+
+        if (position < 0 || position === channelPosition.current) {
+            return;
+        }
+        channelPosition.current = position;
+        if (state === State.DETAILS) {
+            setDetailsData();
+        }
+        updateCanvas();
+    };
+    // keep the throttle pointed at this render's closure - see the ref above
+    onHoverPointRef.current = handleHoverAt;
+
+    const handleMouseMove = (event: React.MouseEvent<HTMLCanvasElement>) => {
+        hoverThrottle.current.push({ x: event.clientX, y: event.clientY });
+    };
+
     const handleClick = (event: React.MouseEvent<HTMLDivElement>) => {
         // the rail, the empty banner and the details panel's action rows all
         // stop propagation, so anything arriving here is a click on the list
@@ -844,6 +895,9 @@ const ChannelList = (props: {
             // stop animation when unmounting
             cancelAnimationFrame(scrollAnimationId.current);
             holdGesture.current.cancel();
+            // a queued hover would otherwise repaint a canvas that no longer
+            // exists on the frame after this component goes away
+            hoverThrottle.current.cancel();
         };
     }, []);
 
@@ -918,6 +972,11 @@ const ChannelList = (props: {
                 // coordinate space still starts at 0 and nothing in the draw
                 // code has to know the column exists
                 style={{ display: 'block', marginLeft: GROUPS_WIDTH }}
+                // on the canvas rather than the wrapper: the wrapper covers the
+                // whole screen, so moving the pointer over the groups column or
+                // the details panel would fire a hit-test that can only ever
+                // miss
+                onMouseMove={handleMouseMove}
             />
 
             {state === State.DETAILS && (
