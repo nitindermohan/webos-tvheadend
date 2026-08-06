@@ -39,3 +39,43 @@ export const channelPositionAt = (offsetY: number, metrics: ChannelListMetrics):
     const position = Math.floor(y / metrics.rowHeight);
     return position < metrics.channelCount ? position : -1;
 };
+
+/** What a scroll needs to know to place a cursor row on screen. */
+export interface ScrollTargetMetrics {
+    rowHeight: number;
+    /** Channels in the active (filtered) view. */
+    channelCount: number;
+    /** Height of the visible window onto the list. */
+    viewportHeight: number;
+    /** Rows kept above the cursor once the list is scrolling at all. */
+    topPadding: number;
+}
+
+/**
+ * How far the list should be scrolled to show `position` as the cursor row.
+ *
+ * The cursor sits `topPadding` rows below the top of the screen, except at
+ * both ends of the list where the content runs out and the cursor walks the
+ * remaining rows instead.
+ *
+ * This replaces a three-branch version in ChannelList that clamped the bottom
+ * to `rowHeight * (channelCount - 2 * topPadding)` - a bound that never
+ * consults the viewport and so cannot be right for two different row heights.
+ * It was wrong in both directions:
+ *
+ * - **Too far at the bottom.** At 90px rows the last screen showed two rows of
+ *   empty canvas below the final channel; at 48px, where more rows fit, twelve.
+ * - **Negative for short lists.** With 8 channels it computed
+ *   `rowHeight * (8 - 10)`, pushing every row *down* the canvas and leaving a
+ *   band of nothing above the first one. Small categories hit this every time.
+ *
+ * Clamping to `[0, contentHeight - viewportHeight]` subsumes all three of the
+ * old branches and both bugs.
+ */
+export const scrollTargetFor = (position: number, metrics: ScrollTargetMetrics): number => {
+    const contentHeight = metrics.channelCount * metrics.rowHeight;
+    const maxScroll = Math.max(0, contentHeight - metrics.viewportHeight);
+    const desired = (position - metrics.topPadding) * metrics.rowHeight;
+
+    return Math.min(Math.max(desired, 0), maxScroll);
+};

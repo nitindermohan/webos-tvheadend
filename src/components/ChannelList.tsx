@@ -16,7 +16,7 @@ import RemoteKeys from '../utils/RemoteKeys';
 import ChannelFilter from '../models/ChannelFilter';
 import FavoritesStore from '../utils/FavoritesStore';
 import HoldGesture from '../utils/HoldGesture';
-import { channelPositionAt } from '../utils/ChannelListGeometry';
+import { channelPositionAt, scrollTargetFor } from '../utils/ChannelListGeometry';
 import { channelInitials } from '../utils/ChannelInitials';
 import { createFrameThrottle } from '../utils/FrameThrottle';
 import { scrollThumb } from '../utils/ScrollIndicator';
@@ -52,7 +52,8 @@ const ChannelList = (props: {
         activeFilter,
         setActiveFilter,
         favoritesVersion,
-        bumpFavoritesVersion
+        bumpFavoritesVersion,
+        density
     } = useContext(AppContext);
     const canvas = useRef<HTMLCanvasElement>(null);
     const listWrapper = useRef<HTMLDivElement>(null);
@@ -83,14 +84,17 @@ const ChannelList = (props: {
         createFrameThrottle<{ x: number; y: number }>((point) => onHoverPointRef.current(point))
     );
 
-    const mChannelLayoutTextSize = 32;
+    // Row height and text sizes come from the density descriptor; everything
+    // horizontal below is shared, so switching density changes the rhythm of
+    // the list without moving a single column sideways.
+    const mChannelLayoutTextSize = density.nameTextSize;
     const mChannelLayoutEventTextSize = 26;
-    const mChannelLayoutNumberTextSize = 38;
+    const mChannelLayoutNumberTextSize = density.numberTextSize;
     const mChannelLayoutTextColor = getTheme().textPrimary;
     const mChannelLayoutTitleTextColor = getTheme().textSecondary;
     const mChannelLayoutMargin = 3;
     const mChannelLayoutPadding = 7;
-    const mChannelLayoutHeight = 90;
+    const mChannelLayoutHeight = density.rowHeight;
     const mChannelLayoutWidth = 900;
     // The selected row used to be flooded with solid cyan, which put the
     // #cccccc row text at poor contrast against it - the single most obvious
@@ -139,27 +143,26 @@ const ChannelList = (props: {
     };
 
     const scrollToChannelPosition = (channelPosition: number, withAnimation: boolean) => {
-        // start scrolling after padding position top
-        if (channelPosition < VERTICAL_SCROLL_TOP_PADDING_ITEM) {
-            scrollY.current = 0;
-            updateCanvas();
-            return;
-        }
+        // All three of the old branches here - "still in the top padding",
+        // "into the bottom padding", "somewhere in the middle" - collapse into
+        // one clamp, which is also what fixes the two bugs they carried. See
+        // scrollTargetFor for both.
+        const scrollTarget = scrollTargetFor(channelPosition, {
+            rowHeight: mChannelLayoutHeight,
+            channelCount: epgData.getChannelCount(),
+            viewportHeight: getHeight() - mChannelListTopOffset,
+            topPadding: VERTICAL_SCROLL_TOP_PADDING_ITEM
+        });
 
-        // stop scrolling before top padding position
-        const maxPosition = epgData.getChannelCount() - VERTICAL_SCROLL_TOP_PADDING_ITEM;
-        if (channelPosition >= maxPosition) {
-            // fix scroll to channel in case it is within bottom padding
-            if (scrollY.current === 0) {
-                scrollY.current = mChannelLayoutHeight * (maxPosition - VERTICAL_SCROLL_TOP_PADDING_ITEM);
-            }
-            updateCanvas();
-            return;
-        }
-
-        // scroll to channel position
-        const scrollTarget = mChannelLayoutHeight * (channelPosition - VERTICAL_SCROLL_TOP_PADDING_ITEM);
-        if (!withAnimation) {
+        if (!withAnimation || scrollTarget === scrollY.current) {
+            // The equality half is not an optimisation. animateScroll only
+            // stops when the delta's sign says it has passed the target, so a
+            // zero delta satisfies neither guard: it would reschedule itself
+            // and repaint the whole list every frame, forever. The old
+            // three-branch version returned early in exactly these cases, so
+            // it never produced a zero distance; the clamp does, whenever two
+            // neighbouring positions resolve to the same scroll offset - which
+            // is every step through the last screenful of channels.
             scrollY.current = scrollTarget;
             updateCanvas();
             return;
@@ -323,7 +326,13 @@ const ChannelList = (props: {
         // channel line
         const currentEvent = epgData.getEventAtTimestamp(position, EPGUtils.getNow());
         const channelIconWidth = mChannelLayoutHeight * 1.3;
-        const channelNameWidth = mChannelArtRight - channelIconWidth - mChannelLayoutNameLeft;
+        // a compact row carries no logo, so the name gets the artwork column's
+        // width back rather than being truncated around a box that is not there
+        const channelNameWidth =
+            mChannelArtRight - (density.isCompact ? 0 : channelIconWidth) - mChannelLayoutNameLeft;
+        // In a two-line row the name sits on the upper line, above the
+        // programme. A compact row has only the one line, so it centres.
+        const nameY = density.isCompact ? drawingRect.middle : drawingRect.top + mChannelLayoutHeight * 0.33;
 
         const leftBeforeRecMark = drawingRect.left;
         // recording mark
@@ -331,27 +340,23 @@ const ChannelList = (props: {
             const radius = 10;
             canvas.fillStyle = getTheme().danger;
             canvas.beginPath();
-            canvas.arc(drawingRect.left + mChannelLayoutNameLeft + radius, drawingRect.middle - radius, radius, 0, 2 * Math.PI);
+            // centred on the name's own line rather than the row's, so it stays
+            // beside the text it qualifies at either density
+            canvas.arc(drawingRect.left + mChannelLayoutNameLeft + radius, nameY, radius, 0, 2 * Math.PI);
             canvas.fill();
             drawingRect.left += 2 * radius + mChannelLayoutPadding;
         }
         // channel name
-        CanvasUtils.writeText(
-            canvas,
-            channel.getName(),
-            drawingRect.left + mChannelLayoutNameLeft,
-            drawingRect.top + mChannelLayoutHeight * 0.33,
-            {
-                fontSize: mChannelLayoutTextSize,
-                fillStyle: mChannelLayoutTextColor,
-                isBold: true,
-                maxWidth: channelNameWidth
-            }
-        );
+        CanvasUtils.writeText(canvas, channel.getName(), drawingRect.left + mChannelLayoutNameLeft, nameY, {
+            fontSize: mChannelLayoutTextSize,
+            fillStyle: mChannelLayoutTextColor,
+            isBold: true,
+            maxWidth: channelNameWidth
+        });
         drawingRect.left = leftBeforeRecMark;
 
-        // channel event
-        if (currentEvent) {
+        // channel event - the second line, and so absent from a compact row
+        if (currentEvent && !density.isCompact) {
             // channel event progress bar
             const channelEventProgressRect = new Rect();
             // shares the name column's left edge (mChannelLayoutNameLeft) so
@@ -392,23 +397,29 @@ const ChannelList = (props: {
             );
         }
 
-        // channel logo, or initials standing in for one
-        const imageURL = channel.getImageURL();
-        const image = imageURL && imageCache.get(imageURL);
-        if (image !== undefined) {
-            const channelImageRect = getDrawingRectForChannelImage(position, image);
-            // blit a bitmap already rasterised at this size rather than making
-            // drawImage rescale the full-resolution logo on every frame
-            const scaled = imageCache.getScaled(imageURL, channelImageRect.width, channelImageRect.height);
-            scaled && canvas.drawImage(scaled, channelImageRect.left, channelImageRect.top);
-            IS_DEBUG && CanvasUtils.drawDebugRect(canvas, channelImageRect);
-        } else {
-            // Without this the right ~120px of the row is simply empty, which
-            // on black reads as a broken row rather than a channel without
-            // artwork. Covers both "this channel has no logo" and "the logo has
-            // not arrived yet" - LogoCache bumps logoVersion when one does, and
-            // the row redraws with the real image.
-            drawChannelInitials(canvas, position, channel.getName());
+        // channel logo, or initials standing in for one. A compact row shows
+        // neither: at 48px the logo box is 62px wide, which is too small to
+        // recognise a broadcaster by - and the point of the density is to scan
+        // 908 names quickly, which artwork at that size hinders rather than
+        // helps. Dropping it also gives the name back the full row width.
+        if (!density.isCompact) {
+            const imageURL = channel.getImageURL();
+            const image = imageURL && imageCache.get(imageURL);
+            if (imageURL && image !== undefined) {
+                const channelImageRect = getDrawingRectForChannelImage(position, image);
+                // blit a bitmap already rasterised at this size rather than making
+                // drawImage rescale the full-resolution logo on every frame
+                const scaled = imageCache.getScaled(imageURL, channelImageRect.width, channelImageRect.height);
+                scaled && canvas.drawImage(scaled, channelImageRect.left, channelImageRect.top);
+                IS_DEBUG && CanvasUtils.drawDebugRect(canvas, channelImageRect);
+            } else {
+                // Without this the right ~120px of the row is simply empty, which
+                // on black reads as a broken row rather than a channel without
+                // artwork. Covers both "this channel has no logo" and "the logo has
+                // not arrived yet" - LogoCache bumps logoVersion when one does, and
+                // the row redraws with the real image.
+                drawChannelInitials(canvas, position, channel.getName());
+            }
         }
 
         // favorite marker - placed in the gap between the right-aligned channel
@@ -962,6 +973,15 @@ const ChannelList = (props: {
         // the filtered view or the favorite markers changed - repaint
         recalculateAndRedraw(false);
     }, [activeFilter, favoritesVersion]);
+
+    useEffect(() => {
+        // Row height changed, so the existing scrollY points at a different
+        // channel than it did a moment ago. Recalculating rather than merely
+        // repainting re-derives it from the cursor position, which is what
+        // keeps the channel the user was looking at under their eyes across
+        // the switch. Without animation: this is a layout change, not a move.
+        recalculateAndRedraw(false);
+    }, [density]);
 
     useEffect(() => {
         // logos load on demand now, so a row can be drawn before its logo

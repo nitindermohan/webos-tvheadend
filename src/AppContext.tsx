@@ -8,6 +8,7 @@ import ChannelFilter from './models/ChannelFilter';
 import CategoryStore from './utils/CategoryStore';
 import FavoritesStore from './utils/FavoritesStore';
 import { whenFontsReady } from './utils/FontReadiness';
+import { DEFAULT_DENSITY, Density } from './utils/Density';
 
 export enum AppVisibilityState {
     FOCUSED = 'focused',
@@ -52,6 +53,18 @@ type AppContext = {
     setActiveFilter: (value: ChannelFilter) => void;
     favoritesVersion: number;
     bumpFavoritesVersion: () => void;
+    /**
+     * How tall channel rows are and what fits in them.
+     *
+     * Held here rather than in ChannelList so that changing it repaints - the
+     * canvas has no other way to learn about it, and the appearance settings
+     * screen (Phase 4) needs somewhere outside the list to set it from. It is
+     * deliberately *not* persisted yet: Phase 4's AppearanceStore owns the
+     * whole appearance slice, and adding a lone localStorage key for density
+     * now would only have to be folded back in.
+     */
+    density: Density;
+    setDensity: (value: Density) => void;
 };
 
 const AppContext = createContext({} as AppContext);
@@ -105,6 +118,7 @@ export const AppContextProvider = ({ children }: { children: JSX.Element }) => {
     const [channelTags, setChannelTags] = useState<ChannelTag[]>([]);
     const [activeFilter, setActiveFilterState] = useState<ChannelFilter>(CategoryStore.getActiveFilter());
     const [favoritesVersion, setFavoritesVersion] = useState(0);
+    const [density, setDensity] = useState<Density>(DEFAULT_DENSITY);
 
     const appContext: AppContext = {
         menuState: menuState,
@@ -187,7 +201,9 @@ export const AppContextProvider = ({ children }: { children: JSX.Element }) => {
             // epgData is already re-filtered but currentChannelPosition is
             // still stale
             setFavoritesVersion((version) => version + 1);
-        }
+        },
+        density: density,
+        setDensity: (value: Density) => setDensity(value)
     };
 
     return <AppContext.Provider value={appContext}>{children}</AppContext.Provider>;
