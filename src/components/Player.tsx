@@ -7,15 +7,24 @@ import { AppViewState } from '../App';
 import RecordingList from './RecordingList';
 import EPGEvent from '../models/EPGEvent';
 import EPGChannelRecording from '../models/EPGChannelRecording';
+import RemoteKeys from '../utils/RemoteKeys';
+import { State } from '../models/RecordingsState';
+import { nextStateOnRecordingsBack } from '../utils/BackNavigation';
 
-export enum State {
-    PLAYER = 'player',
-    PLAYER_INFO = 'playerInfo',
-    RECORDINGS_LIST = 'recordingsList',
-    RECORDINGS_SETTINGS = 'recordingSettings'
-}
+export { State };
 
-const Player = () => {
+/**
+ * The recordings view: a video surface with the recordings list over it.
+ *
+ * `unmount` is not optional and not decorative. Every other full-screen view
+ * (TVHSettings, CategorySetup, AppearanceSettings) is handed one, and this was
+ * the only one rendered without - which meant nothing in the RECORDINGS state
+ * could ever put `appViewState` back to TV. Back self-transitioned to
+ * State.PLAYER, a no-op when already there, so the view had no exit at all:
+ * the sole escape was the menu, on GREEN, which modern Magic Remotes do not
+ * have - and which RecordingList swallowed anyway.
+ */
+const Player = (props: { unmount: () => void }) => {
     const {
         persistentAuthToken,
         currentRecordingPosition,
@@ -82,9 +91,18 @@ const Player = () => {
                 event.stopPropagation();
                 handleChannelSettingsSwitch();
                 break;
-            case 461: // backbutton
+            // KEY_B is the desktop alias, as everywhere else. The comment sits
+            // above the first case because eslint's no-fallthrough counts a
+            // comment between two case labels as making the first non-empty.
+            case RemoteKeys.BACK:
+            case RemoteKeys.KEY_B:
                 event.stopPropagation();
-                setState(State.PLAYER);
+                // Back is a ladder out, not a self-transition: null is the
+                // bottom rung and means leave the recordings view entirely.
+                {
+                    const next = nextStateOnRecordingsBack(state);
+                    next === null ? props.unmount() : setState(next);
+                }
                 break;
             case 404: // green button
             case 71: //'g'

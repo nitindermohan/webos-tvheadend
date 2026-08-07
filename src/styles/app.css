@@ -224,6 +224,18 @@ body {
     overflow: hidden;
 }
 
+/* Sits between the subtitle and the description, deliberately quieter than
+   both: it is an instruction, not content, and it is on screen the whole time
+   the list is. Muted rather than secondary for that reason. */
+.channelListDetails .detailsHint {
+    color: var(--text-muted);
+    font-size: calc(22px * var(--font-scale));
+    padding-top: 10px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 .menu {
     background-color: rgba(var(--surface-raised-rgb), 0.92);
     border-radius: 20px;

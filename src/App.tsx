@@ -311,7 +311,9 @@ const App = () => {
                 <AppearanceSettings unmount={() => setAppViewState(AppViewState.TV)} />
             )}
             {appViewState === AppViewState.TV && isChannelsRetrieved && <TV />}
-            {appViewState === AppViewState.RECORDINGS && <Player />}
+            {appViewState === AppViewState.RECORDINGS && (
+                <Player unmount={() => setAppViewState(AppViewState.TV)} />
+            )}
         </div>
     );
 };

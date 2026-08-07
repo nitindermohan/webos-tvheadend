@@ -10,16 +10,13 @@ import { getTheme, withAlpha } from '../utils/Theme';
 import DialogPopup from './DialogPopup';
 import EPGChannelRecording from '../models/EPGChannelRecording';
 import EPGUtils from '../utils/EPGUtils';
+import RemoteKeys from '../utils/RemoteKeys';
+import HoldGesture from '../utils/HoldGesture';
+import { State } from '../models/RecordingListState';
+import { dialogForKind, RECORDING_UPCOMING } from '../utils/RecordingDialog';
 
 const VERTICAL_SCROLL_TOP_PADDING_ITEM = 5;
 const IS_DEBUG = false;
-
-enum State {
-    NORMAL = 'normal',
-    DETAILS = 'details',
-    DELETE_DIALOG = 'deleteDialog',
-    CANCEL_DIALOG = 'cancelDialog'
-}
 
 interface DetailsState {
     focusedChannelRecording?: EPGChannelRecording;
@@ -42,6 +39,11 @@ const RecordingList = (props: {
     const scrollAnimationId = useRef(0);
     const scrollY = useRef(0);
     const recordPosition = useRef(currentRecordingPosition);
+
+    // hold-OK-to-delete. The gesture instance outlives any single render, so it
+    // calls through a ref rather than capturing the closure it was built with.
+    const openRecordingDialogRef = useRef<() => void>(() => undefined);
+    const holdGesture = useRef(new HoldGesture(600, () => openRecordingDialogRef.current()));
 
     // The text scale, but not the density: a recordings list is a handful of
     // rows the user reads once, not 900 they scan, so the compact row that
@@ -389,38 +391,67 @@ const RecordingList = (props: {
                 event.stopPropagation();
                 scrollDown();
                 break;
-            case 404: // TODO yellow button + back button
-            case 67: // keyboard 'c'
-            case 461: // back button
+            // GREEN is deliberately absent here. It used to unmount the list,
+            // which meant the one key that opens the menu was swallowed by the
+            // only view with no other way out - pressing menu closed the list
+            // instead of opening the menu. It now falls through to App.
+            case RemoteKeys.KEY_C:
+            case RemoteKeys.BACK:
+            case RemoteKeys.KEY_B:
                 event.stopPropagation();
                 props.unmount();
                 break;
-            case 13: // ok button -> switch to focused channel
+            case RemoteKeys.OK:
+                // Down only. The select fires on key-up, so that holding OK can
+                // mean something different from tapping it - see handleOkUp.
                 event.stopPropagation();
-                setCurrentRecordingPosition(recordPosition.current);
-                props.unmount();
+                holdGesture.current.down();
                 break;
-            case 82: // keyboard 'r'
-            case 403: {
-                // red button to trigger or cancel recording
+            case RemoteKeys.KEY_R:
+            case RemoteKeys.RED:
                 event.stopPropagation();
-                if (detailsState?.focusedEvent) {
-                    if (detailsState?.focusedChannelRecording?.getKind() === 'REC_UPCOMING') {
-                        // show cancel dialog
-                        setState(State.CANCEL_DIALOG);
-                    } else {
-                        // show delete dialog
-                        setState(State.DELETE_DIALOG);
-                    }
-                }
+                openRecordingDialog();
                 break;
-            }
             default:
                 console.log('RecordingList-keyPressed:', keyCode);
         }
 
         // pass unhandled events to parent
         if (!event.isPropagationStopped) return event;
+    };
+
+    /**
+     * Open the confirm dialog for the focused recording - delete for one that
+     * exists, cancel for one still upcoming.
+     *
+     * Reachable two ways on purpose. RED is how it has always worked and stays
+     * for older remotes, but modern Magic Remotes have no colour buttons at
+     * all, which made deleting a recording literally impossible on current
+     * hardware: the dialogs, the handlers and the service calls were all
+     * present and simply had no reachable trigger. Holding OK is the app's own
+     * idiom for "the second thing this row can do" (ChannelList uses it for
+     * favourites), and OK is a button every remote has.
+     */
+    const openRecordingDialog = () => {
+        if (!detailsState?.focusedEvent) {
+            return;
+        }
+        setState(dialogForKind(detailsState?.focusedChannelRecording?.getKind()));
+    };
+    // keep the trampoline on the latest closure, so the long-lived HoldGesture
+    // never fires against a stale detailsState - same arrangement, and the same
+    // reason, as ChannelList's onToggleFavoriteRef
+    openRecordingDialogRef.current = openRecordingDialog;
+
+    const handleOkUp = () => {
+        // up() reports true only for a genuine short press: false when the hold
+        // already fired (the dialog is open - selecting underneath it would
+        // start playing the very recording being deleted), and false when this
+        // instance never saw the matching down()
+        if (holdGesture.current.up()) {
+            setCurrentRecordingPosition(recordPosition.current);
+            props.unmount();
+        }
     };
 
     const deleteRecording = (event: EPGEvent | undefined) => {
@@ -528,6 +559,9 @@ const RecordingList = (props: {
         return () => {
             // stop animation when unmounting
             cancelAnimationFrame(scrollAnimationId.current);
+            // and drop any hold still counting down, so it cannot fire a
+            // dialog into a component that is already gone
+            holdGesture.current.cancel();
         };
     }, []);
 
@@ -537,6 +571,7 @@ const RecordingList = (props: {
             ref={listWrapper}
             tabIndex={-1}
             onKeyDown={handleKeyPress}
+            onKeyUp={(event) => event.keyCode === RemoteKeys.OK && handleOkUp()}
             onWheel={handleScrollWheel}
             onClick={handleClick}
             className="channelList"
@@ -551,6 +586,11 @@ const RecordingList = (props: {
                 currentEvent={detailsState?.focusedEvent}
                 nextEvents={[]}
                 nextSameEvents={[]}
+                hint={
+                    detailsState?.focusedChannelRecording?.getKind() === RECORDING_UPCOMING
+                        ? 'OK to play — hold OK to cancel this recording'
+                        : 'OK to play — hold OK to delete'
+                }
             />
 
             {state === State.DELETE_DIALOG && detailsState?.focusedEvent && (

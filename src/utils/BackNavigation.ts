@@ -1,4 +1,5 @@
 import { State } from '../models/TVState';
+import { State as RecordingsState } from '../models/RecordingsState';
 
 /**
  * Where BACK goes from the live-TV screen.
@@ -20,3 +21,18 @@ import { State } from '../models/TVState';
  */
 export const nextStateOnBack = (state: State): State =>
     state === State.TV || state === State.CHANNEL_INFO ? State.EPG : State.TV;
+
+/**
+ * Where BACK goes from the recordings screen. `null` means "leave the
+ * recordings view entirely" - the caller's unmount.
+ *
+ * The rule is a ladder, and the null rung is the whole point. Every sub-state
+ * drops one level to the player; from the player, the bottom, BACK leaves.
+ * Before this, BACK from the player set the state it was already in, so the
+ * view had no exit: the only way out was the menu, on GREEN, a button modern
+ * Magic Remotes do not have - and which the recordings list consumed anyway.
+ * A screen that cannot be left is indistinguishable from a crashed app, and on
+ * a TV the user's only recourse is to kill it from the launcher.
+ */
+export const nextStateOnRecordingsBack = (state: RecordingsState): RecordingsState | null =>
+    state === RecordingsState.PLAYER ? null : RecordingsState.PLAYER;

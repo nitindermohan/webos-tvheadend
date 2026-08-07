@@ -17,6 +17,10 @@ const ChannelListDetails = (props: {
     focusedActionIndex?: number;
     onToggleFavorite?: () => void;
     onToggleRecording?: () => void;
+    // optional one-line affordance, for a caller whose only action is a
+    // gesture rather than a visible control. A hold with nothing on screen
+    // naming it is not a feature - it is a feature nobody finds.
+    hint?: string;
 }) => {
     const { locale } = useContext(AppContext);
     const channelListDetailsWrapper = useRef<HTMLDivElement>(null);
@@ -110,6 +114,7 @@ const ChannelListDetails = (props: {
                 {props.currentEvent?.getTitle() || 'No Information'}
             </div>
             <div className="subTitle">{props.currentEvent?.getSubTitle() || ''}</div>
+            {props.hint && <div className="detailsHint">{props.hint}</div>}
             <div className="desc">{props.currentEvent?.getDescription() || ''}</div>
             <div className="next">
                 <div className="separator"></div>
