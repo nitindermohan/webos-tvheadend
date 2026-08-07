@@ -82,6 +82,119 @@ export const OLED_BLACK: Palette = {
 };
 
 /**
+ * Cooler and a shade lighter than OLED black, for LCD panels where a true
+ * black backlight-bleeds to charcoal anyway and the surfaces need a visible
+ * step between them to read as layers at all.
+ */
+export const SLATE_CYAN: Palette = {
+    surfaceBase: '#0B0F14',
+    surfaceRaised: '#141B23',
+    surfaceCard: '#212C38',
+
+    textPrimary: '#F2F5F8',
+    textSecondary: '#93A1B0',
+    textMuted: '#5E6C7A',
+
+    accent: '#22D3EE',
+    focus: '#FFC53D',
+    textOnAccent: '#06131A',
+
+    danger: '#F05252',
+    favorite: '#FFC53D'
+};
+
+/**
+ * Neutral greys with a violet selection - the warmest of the three, and the
+ * one that does not tint the video playing behind a translucent overlay.
+ */
+export const GRAPHITE_VIOLET: Palette = {
+    surfaceBase: '#121214',
+    surfaceRaised: '#1B1B1F',
+    surfaceCard: '#27272E',
+
+    textPrimary: '#F5F5F7',
+    textSecondary: '#9B9BA5',
+    textMuted: '#6A6A74',
+
+    accent: '#A78BFA',
+    focus: '#FFC53D',
+    textOnAccent: '#15101F',
+
+    danger: '#E5484D',
+    favorite: '#FFC53D'
+};
+
+export interface ThemeChoice {
+    /** Stable identifier. AppearanceStore persists this string, not the palette. */
+    key: string;
+    label: string;
+    palette: Palette;
+}
+
+/**
+ * `focus` is amber in all three deliberately. It means "the D-pad cursor is
+ * here" and nothing else, so keeping it constant across themes means the one
+ * colour the user must be able to find instantly never moves - a theme change
+ * restyles the app without relearning where the cursor is.
+ */
+export const THEMES: ThemeChoice[] = [
+    { key: 'oled', label: 'OLED black', palette: OLED_BLACK },
+    { key: 'slate', label: 'Slate', palette: SLATE_CYAN },
+    { key: 'graphite', label: 'Graphite', palette: GRAPHITE_VIOLET }
+];
+
+/**
+ * Resolve a persisted key back to its palette, falling back to the first theme
+ * for anything unrecognised. Returning undefined instead would stamp every
+ * custom property with the empty string - a black-on-black app with no error.
+ */
+export const themeForKey = (key: string | null | undefined): Palette =>
+    (THEMES.find((theme) => theme.key === key) || THEMES[0]).palette;
+
+export interface AccentChoice {
+    key: string;
+    label: string;
+    /** Absent means "whatever the chosen theme uses" - see DEFAULT_ACCENT. */
+    color?: string;
+}
+
+/**
+ * The absence of an override rather than a colour of its own.
+ *
+ * Storing OLED black's blue as the default would pin that blue into the slate
+ * and graphite themes the moment the user switched, so a "default" accent has
+ * to mean "ask the palette", not "this particular blue".
+ */
+export const DEFAULT_ACCENT: AccentChoice = { key: 'default', label: 'Theme default' };
+
+/**
+ * Deliberately no amber. `focus` is amber in every theme, and an accent set to
+ * match it would make a focused row and a selected row indistinguishable -
+ * exactly the confusion the two roles exist to prevent.
+ */
+export const ACCENTS: AccentChoice[] = [
+    DEFAULT_ACCENT,
+    { key: 'blue', label: 'Blue', color: '#3EA6FF' },
+    { key: 'cyan', label: 'Cyan', color: '#22D3EE' },
+    { key: 'violet', label: 'Violet', color: '#A78BFA' },
+    { key: 'green', label: 'Green', color: '#4ADE80' },
+    { key: 'rose', label: 'Rose', color: '#FB7185' }
+];
+
+export const accentForKey = (key: string | null | undefined): AccentChoice =>
+    ACCENTS.find((accent) => accent.key === key) || DEFAULT_ACCENT;
+
+/**
+ * A palette with its SELECTION colour overridden.
+ *
+ * `focus` is untouched on purpose: it is the D-pad cursor and belongs to the
+ * app's navigation language, not to the user's taste. Letting an accent choice
+ * move it would allow the two roles to collide.
+ */
+export const withAccent = (palette: Palette, color?: string): Palette =>
+    color ? { ...palette, accent: color } : { ...palette };
+
+/**
  * `surfaceBase` -> `--surface-base`. Derived rather than listed so that a role
  * added to `Palette` cannot be missed by the stamping loop below.
  */
@@ -152,6 +265,21 @@ export const applyTheme = (palette: Palette): void => {
  */
 export const getTheme = (): Palette => ({ ...current });
 
-const Theme = { OLED_BLACK, applyTheme, getTheme, cssVariableName, rgbVariableName, withAlpha };
+const Theme = {
+    OLED_BLACK,
+    SLATE_CYAN,
+    GRAPHITE_VIOLET,
+    THEMES,
+    themeForKey,
+    ACCENTS,
+    DEFAULT_ACCENT,
+    accentForKey,
+    withAccent,
+    applyTheme,
+    getTheme,
+    cssVariableName,
+    rgbVariableName,
+    withAlpha
+};
 
 export default Theme;
