@@ -1,10 +1,10 @@
 {
-    "id": "com.tvh.app",
+    "id": "com.tvh.next",
     "version": "1.1.0",
     "vendor": "th0enix",
     "type": "web",
     "main": "index.html",
-    "title": "TVheadend Client",
+    "title": "TVheadend Next",
     "splashBackground": "splash.png",
     "icon": "icon.png",
     "largeIcon": "largeIcon.png",

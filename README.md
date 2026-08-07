@@ -54,8 +54,8 @@ npm run webos:emu
 npm run webos:tv
 
 # for debugging attach to device
-ares-inspect -d emulator com.willinux.tvh.app --open
-ares-inspect -d tv com.willinux.tvh.app --open
+ares-inspect -d emulator com.tvh.next --open
+ares-inspect -d tv com.tvh.next --open
 ```
 ## Features
 - EPG

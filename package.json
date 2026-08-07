@@ -17,12 +17,12 @@
     "build": "react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject",
-    "webos:emu": "npm run build && ares-package build service && ares-install com.tvh.app_${npm_package_version}_all.ipk -d emulator && ares-launch com.tvh.app -d emulator",
-    "webos:emu-rm": "ares-install -d emulator --remove com.tvh.app",
-    "webos:tv": "npm run build && ares-package build service && ares-install com.tvh.app_${npm_package_version}_all.ipk -d tv && ares-launch com.tvh.app -d tv",
-    "webos:tv-rm": "ares-install -d tv --remove com.tvh.app",
-    "inspect:emu": "ares-inspect -d emulator com.tvh.app --open",
-    "inspect:tv": "ares-inspect -d tv com.tvh.app --open"
+    "webos:emu": "npm run build && ares-package build service && ares-install com.tvh.next_${npm_package_version}_all.ipk -d emulator && ares-launch com.tvh.next -d emulator",
+    "webos:emu-rm": "ares-install -d emulator --remove com.tvh.next",
+    "webos:tv": "npm run build && ares-package build service && ares-install com.tvh.next_${npm_package_version}_all.ipk -d tv && ares-launch com.tvh.next -d tv",
+    "webos:tv-rm": "ares-install -d tv --remove com.tvh.next",
+    "inspect:emu": "ares-inspect -d emulator com.tvh.next --open",
+    "inspect:tv": "ares-inspect -d tv com.tvh.next --open"
   },
   "eslintConfig": {
     "extends": [

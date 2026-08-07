@@ -52,6 +52,6 @@ jobs:
       - name: Upload ipk
         uses: actions/upload-artifact@v4
         with:
-          name: com.tvh.app_${{ steps.app.outputs.version }}
+          name: com.tvh.next_${{ steps.app.outputs.version }}
           path: '*.ipk'
           if-no-files-found: error

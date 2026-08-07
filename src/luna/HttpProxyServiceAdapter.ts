@@ -1,11 +1,12 @@
 import '@procot/webostv/webOSTV';
 import Config from '../config/Config';
+import { PROXY_SERVICE_URI } from './AppIdentity';
 
 export default class HttpProxyServiceAdapter implements HttpProxyInterface {
     call<T>(params: ProxyRequestParams): Promise<T> {
         return new Promise<T>((resolve, reject) => {
             console.log('lsa:%s start', params.url);
-            global.webOS.service.request('luna://com.tvh.app.proxy', {
+            global.webOS.service.request(PROXY_SERVICE_URI, {
                 method: 'proxy',
                 parameters: params,
                 onSuccess: (res: ProxySuccessResponse<string>) => {
@@ -25,7 +26,7 @@ export default class HttpProxyServiceAdapter implements HttpProxyInterface {
 
    isAvailable(): Promise<boolean> {
         return new Promise<boolean>((resolve, reject) => {
-            global.webOS.service.request('luna://com.tvh.app.proxy', {
+            global.webOS.service.request(PROXY_SERVICE_URI, {
                 method: "ping",
                 parameters: {},
                 onSuccess: function (res) {

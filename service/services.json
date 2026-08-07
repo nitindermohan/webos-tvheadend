@@ -1,9 +1,9 @@
 {
-    "id": "com.tvh.app.proxy",
+    "id": "com.tvh.next.proxy",
     "description": "TVHeadend Service Proxy",
     "services": [
         {
-            "name": "com.tvh.app.proxy",
+            "name": "com.tvh.next.proxy",
             "commands": [
                 {
                     "name": "proxy",
