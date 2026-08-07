@@ -76,19 +76,44 @@ the canvas measures text before the font finishes loading) is a *metrics*
 question, not an appearance one. Paste this into the `inspect:tv` console:
 
 ```js
-const c = document.createElement('canvas').getContext('2d');
-const s = 'Channel 100 HD Sports';
-c.font = '32px Inter';         const inter = c.measureText(s).width;
-c.font = '32px NoSuchFontXY';  const fallback = c.measureText(s).width;
-({ loaded: document.fonts.check('32px Inter'),
-   bold: document.fonts.check('700 32px Inter'),
-   inter, fallback, differs: inter !== fallback });
+(() => {
+    const c = document.createElement('canvas').getContext('2d');
+    const s = 'Channel 100 HD Sports';
+    c.font = '32px Inter';        const inter = c.measureText(s).width;
+    c.font = '32px NoSuchFontXY'; const fallback = c.measureText(s).width;
+    return { status: document.fonts.status,
+             loaded: document.fonts.check('32px Inter'),
+             bold: document.fonts.check('700 32px Inter'),
+             inter, fallback, differs: inter !== fallback };
+})()
 ```
+
+Wrapped in an IIFE deliberately — top-level `const` in a console makes the
+paste fail the second time you run it.
 
 `loaded` and `bold` both `true`, and `differs` `true`, is the answer. If
 `differs` is `false` the canvas is drawing in the fallback font whatever the
 DOM is doing — which is exactly the bug the Phase 0 metrics-cache flush
 exists to prevent, and it means that flush is not firing on device.
+
+## If no data arrives
+
+The app launching and staying empty is the signature of an id mismatch, and it
+looks identical to an unreachable server. This separates them — it pings the
+service directly, bypassing everything above it:
+
+```js
+webOS.service.request('luna://com.tvh.next.proxy', {
+    method: 'ping', parameters: {},
+    onSuccess: (r) => console.log('PROXY OK', r),
+    onFailure: (e) => console.log('PROXY FAIL', e)
+});
+```
+
+`PROXY FAIL` (or silence) means the service is not routing — an identity
+problem, despite `AppIdentity.test.ts` passing, and worth reporting with the
+error. `PROXY OK` puts the fault on the server side or in the URL entered at
+setup.
 
 ## What only the TV can show
 
