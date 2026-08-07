@@ -1,6 +1,6 @@
 import React from 'react';
-import ChannelFilter, { isSameFilter } from '../models/ChannelFilter';
-import { FilterEntry } from '../utils/FilterEntries';
+import ChannelFilter from '../models/ChannelFilter';
+import { FilterEntry, isEntryActive } from '../utils/FilterEntries';
 
 /**
  * How much of the screen the column occupies.
@@ -63,7 +63,7 @@ const GroupsColumn = (props: {
         <div className="groupsColumnTitle">Categories</div>
         {props.entries.map((entry, index) => {
             const names = ['groupsColumnItem'];
-            if (isSameFilter(entry.filter, props.activeFilter)) names.push('active');
+            if (isEntryActive(entry, props.activeFilter)) names.push('active');
             if (props.isFocused && index === props.focusedIndex) names.push('focused');
             return (
                 <div

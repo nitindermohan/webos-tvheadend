@@ -1,5 +1,5 @@
 import CategoryStore from './CategoryStore';
-import { ALL_CHANNELS, FAVORITE_CHANNELS, tagFilter } from '../models/ChannelFilter';
+import { ALL_CHANNELS, FAVORITE_CHANNELS, tagFilter, searchFilter } from '../models/ChannelFilter';
 
 describe('CategoryStore', () => {
     beforeEach(() => localStorage.clear());
@@ -35,6 +35,22 @@ describe('CategoryStore', () => {
         expect(CategoryStore.getActiveFilter()).toEqual(FAVORITE_CHANNELS);
         CategoryStore.setActiveFilter(tagFilter('tag-9'));
         expect(CategoryStore.getActiveFilter()).toEqual({ kind: 'tag', tagUuid: 'tag-9' });
+    });
+
+    describe('search filters', () => {
+        it('are not persisted, so the app never opens into an old query', () => {
+            CategoryStore.setActiveFilter(tagFilter('tag-1'));
+            CategoryStore.setActiveFilter(searchFilter('sport'));
+            // still the tag: the search wrote nothing rather than overwriting
+            expect(CategoryStore.getActiveFilter()).toEqual(tagFilter('tag-1'));
+        });
+
+        it('are still refused on read, if one is ever written by other means', () => {
+            // belt and braces - the reader's allow-list is what actually
+            // protects launch, and it must not come to depend on the writer
+            localStorage.setItem('activeChannelFilter', JSON.stringify({ kind: 'search', query: 'sport' }));
+            expect(CategoryStore.getActiveFilter()).toEqual(ALL_CHANNELS);
+        });
     });
 
     describe('when stored data is corrupt', () => {

@@ -415,6 +415,53 @@ body {
     z-index: 9;
 }
 
+/* Sits where the empty banner sits, over the top of the list it filters, and
+   at a higher z-index than it: with no matches both are on screen at once, and
+   the field the user is typing into must not end up underneath the message
+   explaining the result. */
+.channelSearch {
+    position: absolute;
+    top: 0;
+    left: var(--groups-width);
+    width: 900px;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 12px 24px;
+    background-color: rgba(var(--surface-raised-rgb), 0.98);
+    z-index: 11;
+}
+
+.channelSearchInput {
+    flex: 1;
+    min-width: 0;
+    padding: 10px 14px;
+    border: 2px solid rgba(var(--text-secondary-rgb), 0.35);
+    border-radius: 8px;
+    background-color: var(--surface-card);
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: calc(30px * var(--font-scale));
+}
+
+/* The focus ring is the only thing telling the user the on-screen keyboard is
+   aimed here rather than at the list behind. */
+.channelSearchInput:focus {
+    outline: none;
+    border-color: var(--focus);
+}
+
+.channelSearchInput::placeholder {
+    color: var(--text-muted);
+}
+
+.channelSearchCount {
+    flex: none;
+    color: var(--text-secondary);
+    font-size: calc(24px * var(--font-scale));
+}
+
 .categorySetup {
     position: absolute;
     top: 0;

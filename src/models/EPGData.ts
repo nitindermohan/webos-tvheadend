@@ -1,6 +1,7 @@
 import EPGChannel from './EPGChannel';
 import EPGEvent from './EPGEvent';
 import ChannelFilter, { ALL_CHANNELS } from './ChannelFilter';
+import { channelMatchesQuery } from '../utils/ChannelSearch';
 
 /**
  * Created by satadru on 3/30/17.
@@ -14,6 +15,10 @@ export default class EPGData {
     private filter: ChannelFilter = ALL_CHANNELS;
     private favoriteUuids: string[] = [];
     private filterEmpty = false;
+    /** Genuine matches for the active filter, excluding the pinned channel. */
+    private matchCount = 0;
+    /** Index in the active view of the first genuine match. */
+    private firstMatchPosition = 0;
     /** The channel currently playing. Kept visible under every filter so the
      *  position index stays valid and filtering never interrupts playback. */
     private pinnedChannelUuid = '';
@@ -147,6 +152,32 @@ export default class EPGData {
         return this.filterEmpty;
     }
 
+    /**
+     * How many channels genuinely matched the active filter.
+     *
+     * Deliberately not getChannelCount(), which counts the pinned playing
+     * channel too. For a category that hardly shows, but a search reporting
+     * "2 found" beside a single result is a plain contradiction - and the
+     * extra one is a channel that does not match what was typed.
+     */
+    getFilterMatchCount(): number {
+        return this.filter.kind === 'all' ? this.allChannels.length : this.matchCount;
+    }
+
+    /**
+     * Where the cursor should land after a re-filter: the first channel that
+     * genuinely matched, not position 0.
+     *
+     * The two differ because of the pin. The playing channel is folded in at
+     * its natural lineup position, so it is usually *first* - and landing on it
+     * means a search for "neo" opens with an unrelated channel highlighted,
+     * which reads as the search having failed. Falls back to 0 when nothing
+     * matched, where the view is the whole lineup anyway.
+     */
+    getFirstMatchPosition(): number {
+        return this.firstMatchPosition;
+    }
+
     getChannelPositionByUuid(uuid: string): number {
         return this.channels.findIndex((channel) => channel.getUUID() === uuid);
     }
@@ -157,6 +188,15 @@ export default class EPGData {
                 return this.favoriteUuids.indexOf(channel.getUUID()) >= 0;
             case 'tag':
                 return !!this.filter.tagUuid && channel.getTagUuids().indexOf(this.filter.tagUuid) >= 0;
+            case 'search':
+                // Note the playing channel is still pinned into the result by
+                // applyFilter even when it does not match the query. That looks
+                // odd for a search - one unrelated channel among the hits - but
+                // the pin is what keeps currentChannelPosition pointing at the
+                // right row, and a stale position indexes a *different*
+                // channel rather than none. A visible extra row beats zapping
+                // to the wrong channel.
+                return channelMatchesQuery(channel.getName(), channel.getChannelID(), this.filter.query || '');
             default:
                 return true;
         }
@@ -173,15 +213,23 @@ export default class EPGData {
     private applyFilter(): void {
         if (this.filter.kind === 'all') {
             this.filterEmpty = false;
+            this.matchCount = this.allChannels.length;
+            this.firstMatchPosition = 0;
             this.channels = this.allChannels;
             return;
         }
 
         const filtered: EPGChannel[] = [];
         let matchCount = 0;
+        let firstMatchPosition = 0;
         for (const channel of this.allChannels) {
             const matches = this.matchesFilter(channel);
             if (matches) {
+                // recorded against the array that becomes the view, so the
+                // index is directly usable as a cursor position
+                if (matchCount === 0) {
+                    firstMatchPosition = filtered.length;
+                }
                 matchCount++;
             }
             const isPinned = this.pinnedChannelUuid !== '' && channel.getUUID() === this.pinnedChannelUuid;
@@ -190,6 +238,8 @@ export default class EPGData {
             }
         }
 
+        this.matchCount = matchCount;
+        this.firstMatchPosition = matchCount === 0 ? 0 : firstMatchPosition;
         this.filterEmpty = matchCount === 0;
         this.channels = this.filterEmpty ? this.allChannels : filtered;
     }

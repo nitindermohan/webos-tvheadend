@@ -1,8 +1,32 @@
 import ChannelTag from '../models/ChannelTag';
-import ChannelFilter, { ALL_CHANNELS, FAVORITE_CHANNELS, tagFilter, isSameFilter } from '../models/ChannelFilter';
+import ChannelFilter, { ALL_CHANNELS, FAVORITE_CHANNELS, tagFilter, isSameFilter, searchFilter } from '../models/ChannelFilter';
 
 export const FAVORITES_LABEL = '★ Favorites';
 export const ALL_LABEL = 'All';
+export const SEARCH_LABEL = 'Search';
+
+/**
+ * The search row, for hosts that can actually collect a query.
+ *
+ * Not folded into buildFilterEntries, because that list is shared with the EPG
+ * sidebar and only the channel list has the input to drive it. A row that
+ * appears everywhere and works in one place is worse than a row in one place.
+ *
+ * Its filter carries an empty query, which matches every channel - so landing
+ * on the row before typing leaves the lineup alone rather than blanking it.
+ */
+export const SEARCH_ENTRY: FilterEntry = { label: SEARCH_LABEL, filter: searchFilter('') };
+
+/**
+ * Whether a column row should read as the active one.
+ *
+ * Search needs its own rule: the active filter carries whatever has been typed
+ * so far, so comparing it by value to the row's empty-query filter would make
+ * the row stop looking active the moment the user typed a character - the one
+ * moment they most need to see where they are.
+ */
+export const isEntryActive = (entry: FilterEntry, activeFilter: ChannelFilter): boolean =>
+    entry.filter.kind === 'search' ? activeFilter.kind === 'search' : isSameFilter(entry.filter, activeFilter);
 
 export interface FilterEntry {
     label: string;

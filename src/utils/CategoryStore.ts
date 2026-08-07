@@ -54,7 +54,20 @@ export default class CategoryStore {
         }
     }
 
+    /**
+     * Persist the filter, except a search.
+     *
+     * A search is a transient act, not a preference: restoring one on launch
+     * would open the app showing a fraction of the lineup for a reason the
+     * user typed days ago. getActiveFilter already refuses to read one back -
+     * its allow-list covers only favorites and tag - so writing it would be
+     * dead data written on every keystroke. This keeps the two ends honest
+     * about the same rule instead of relying on the reader to undo the writer.
+     */
     static setActiveFilter(filter: ChannelFilter): void {
+        if (filter.kind === 'search') {
+            return;
+        }
         localStorage.setItem(STORAGE_KEY_ACTIVE_FILTER, JSON.stringify(filter));
     }
 }
