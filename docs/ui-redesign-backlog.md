@@ -262,6 +262,26 @@ deliberately left alone there because neither is a colour question.
 - **First-run picker stops playback** for the ~1s it is open, because it
   unmounts `<TV/>`. Consistent with how the settings view already behaves.
 
+## Deferred from the search work (2026-08-08)
+
+- **No search in the EPG.** `SEARCH_ENTRY` is prepended by `ChannelList` only,
+  not folded into `buildFilterEntries`, because the guide shares that list and
+  has nowhere to put the input. A row that appears in both places and works in
+  one is worse than a row in one place — but the guide is also where a long
+  lineup hurts most, so this is worth doing properly rather than leaving.
+- **Hold-OK has no pointer equivalent.** Both hold-OK gestures — favourite in
+  the channel list, delete in the recordings list — are D-pad only. The Magic
+  Remote's pointer can click a row (which selects) but cannot press-and-hold,
+  so the second action on a row is unreachable by pointer. The details panel's
+  action row is the existing answer for favourites; recordings have no such
+  row, only the text hint added with the delete fix.
+- **The pinned playing channel appears in search results.** It is folded into
+  every filtered view so `currentChannelPosition` stays valid, which for a
+  search means one non-matching channel among the hits. Mitigated — the count
+  reports genuine matches only, and the cursor lands on the first real match —
+  but the row is still there and still looks like a mistake. Removing the pin
+  means solving position validity another way first.
+
 ## Related
 
 - Performance: `docs/performance-backlog.md`
