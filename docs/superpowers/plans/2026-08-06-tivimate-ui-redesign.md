@@ -420,11 +420,34 @@ Nothing is done until it is seen on the C5. The harness cannot show: real
 channel logos, actual OLED black rendering, Inter's on-device metrics, Magic
 Remote pointer behaviour, or playback.
 
-- [ ] Install the CI artifact; check every surface.
-- [ ] Confirm Inter is genuinely in use rather than silently falling back —
-      compare a canvas row against a DOM row, since the canvas is where the
-      Phase 0 race would show.
+The checks are written up as `docs/on-device-checklist.md`, because this pass
+recurs every release and "check every surface" is the kind of instruction that
+gets done badly — the checklist names only what fixtures cannot answer, so the
+time goes on the parts that need a TV.
+
+- [x] **Pre-flight the artifact** (2026-08-08, added to the plan — none of the
+      three items below can start until the ipk is known good, and the two
+      ways it silently is not are both findable without a TV). Checked the CI
+      artifact for `5e01fd8` (run 31193145605, 2.04 MB): asset refs are
+      relative, so it will not launch to a black screen; all 20 `@font-face`
+      urls resolve to files inside the ipk, including all 8 Inter files; app
+      id and service id agree. A missing font file does not error — Chromium
+      falls back silently and the result looks nearly right, which is the
+      failure mode most likely to survive an on-device eyeball.
+- [ ] Install the artifact; work through the checklist.
+- [ ] Confirm Inter is genuinely in use rather than silently falling back.
+      **Not** by comparing a canvas row against a DOM row as originally
+      written: at a TV's viewing distance Inter and a default sans are close
+      enough that a wrong answer is easy to get, and the Phase 0 race is a
+      metrics failure rather than a visible one. The checklist gives a console
+      one-liner that measures `32px Inter` against a deliberately absent font
+      — equal widths mean the canvas is in the fallback whatever the DOM shows.
 - [ ] Confirm the logo fallback against the real lineup.
+
+Blocked on hardware access, not on work: `ares-cli` is not installed and no
+`tv` device is registered, and registering one needs Developer Mode enabled on
+the TV behind an LG developer account sign-in. Setup steps are in the
+checklist.
 
 ## Out of scope
 
