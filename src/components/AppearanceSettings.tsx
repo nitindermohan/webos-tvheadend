@@ -67,7 +67,13 @@ const AppearanceSettings = (props: { unmount: () => void }) => {
                 event.stopPropagation();
                 cycle(APPEARANCE_SETTINGS[focusedIndex], 1);
                 break;
+            // KEY_B is the keyboard alias, so the screen can be left when
+            // running in a desktop browser - the same pairing App.tsx and
+            // TV.tsx use. (The comment sits above the first case rather than
+            // between the two: eslint's no-fallthrough counts a comment as
+            // making an empty case non-empty and demands a break.)
             case RemoteKeys.BACK:
+            case RemoteKeys.KEY_B:
                 event.stopPropagation();
                 // No save step - every change is already applied and stored,
                 // so back is simply leaving
@@ -99,6 +105,14 @@ const AppearanceSettings = (props: { unmount: () => void }) => {
                 <div
                     className={index === focusedIndex ? 'settingRow focused' : 'settingRow'}
                     key={setting.id}
+                    // The panel is taller than the screen at the larger text
+                    // sizes - which is exactly the setting a user changing the
+                    // text size is standing on - so the last rows sit below the
+                    // fold and focus would otherwise walk off the bottom with
+                    // nothing following it. Same mechanism as GroupsColumn:
+                    // let the browser scroll rather than keeping a scroll model
+                    // of our own.
+                    ref={(element) => index === focusedIndex && element?.scrollIntoView({ block: 'nearest' })}
                     onMouseMove={() => setFocusedIndex(index)}
                 >
                     <div className="settingLabel">

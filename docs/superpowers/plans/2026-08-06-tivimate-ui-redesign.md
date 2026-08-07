@@ -352,19 +352,65 @@ below", which is what it should.
 User-facing, matching TiviMate's `Settings > Appearance`. Everything here is a
 parameter established in Phases 0–3, so this phase is wiring plus UI.
 
-- [ ] **Task 4.1 — `AppearanceStore`**, persisted in localStorage following the
+- [x] **Task 4.1 — `AppearanceStore`**, persisted in localStorage following the
       existing `CategoryStore` / `FavoritesStore` pattern, with the same
-      degrade-on-garbage behaviour as `StoredStringArray`.
-- [ ] **Task 4.2 — Settings screen**, reachable from the existing `Menu`.
-- [ ] **Task 4.3 — The options:** theme (the three palettes drawn up on
-      2026-08-05: OLED black, slate+cyan, graphite+violet); accent colour;
-      global font scale; channel list density; show channel numbers; EPG
-      timeline span (2/4/6/12h); EPG grid lines.
-- [ ] **Task 4.4 — Live application.** Changing a setting must repaint the
-      canvases — same version-bump mechanism as Phase 0's font readiness, and
-      the metrics cache must be flushed on any font-size change for the same
-      reason.
-- [ ] **Task 4.5 — Run the app** and change every setting.
+      degrade-on-garbage behaviour as `StoredStringArray`. One key holding one
+      record, not a key per setting: the screen holds the whole record and
+      writes it whole, so splitting it would buy nothing and cost the
+      guarantee that a half-finished write leaves a consistent set rather
+      than a mixture of two. Only choice *keys* are stored — a stored
+      `#3EA6FF` would outlive the palette revision that changed it and strand
+      one colour of the old theme inside the new one.
+- [x] **Task 4.2 — Settings screen**, reachable from the `Menu` (`brightness`
+      icon). Left/right cycles a setting's choices rather than opening a
+      submenu: a submenu costs two presses to reach the alternatives and hides
+      the fact that alternatives exist, while the strip shows all of them and
+      one press moves one along. `selectedChoiceIndex` falls back to the
+      setting's *default*, not to index 0 — for any setting whose default is
+      not first (`channelNumbers`) those differ, and the strip would highlight
+      one value while the app drew another.
+- [x] **Task 4.3 — The options:** all seven. `APPEARANCE_SETTINGS` declares
+      each as a label plus a list of choices, so the screen renders them
+      without knowing what any of them mean, and `resolveAppearance` turns the
+      stored keys into drawable values. The split makes the real failure
+      testable: a setting the screen renders that nothing resolves is a
+      control which moves, persists and changes nothing.
+- [x] **Task 4.4 — Live application.** `publishAppearance` runs synchronously
+      in the setter, *not* in a provider effect — effects run child-first, so a
+      provider-level effect hands every canvas surface the previous palette on
+      the one render that repaints them, and then never fires again. The
+      canvas surfaces list the whole `appearance` object in their draw effects.
+      **No metrics-cache flush**, contrary to what this task originally said:
+      the Phase 0 flush exists because a measurement taken in the fallback font
+      was cached under the key `32px Inter` and reused for the real one — same
+      key, wrong answer. A size change produces a *different* key, so the old
+      entries stay correct for the sizes they describe and flushing would only
+      throw away good measurements.
+- [x] **Task 4.5 — Run the app** and change every setting. All seven verified
+      live and across a reload; both the channel list and the guide redrawn at
+      each. Two things the run caught that review had not: the panel overflows
+      the screen at the larger text sizes — which is exactly the setting a user
+      changing the text size is standing on — so the focused row now
+      `scrollIntoView`s; and the screen had no `KEY_B` alias for Back, so it
+      could not be left in a desktop browser.
+
+**The text scale scales the boxes, not just the text.** Scaling only the text
+is the tempting version and it is wrong: at Largest a 32px name becomes 42px
+inside an unchanged 48px compact row, and a three-digit channel number
+right-aligned at x+70 grows wide enough to start at x-11 and be clipped by the
+edge of the canvas. Row heights and the channel list's whole left gutter scale
+with it — and that gutter is now three derived offsets rather than three
+literals, because switching the numbers off has to collapse it too. 70px of
+empty black where a number used to be reads as a rendering fault, not a
+setting.
+
+**The guide's labels thin out as the span widens.** Twelve hours at the old
+fixed 30 minutes is 24 labels across ~1800px, and a bold 28px "20:30" is about
+70px wide in a 75px slot. The rounding follows the label spacing rather than a
+hardcoded 30, or an hourly ruler would read 19:00, 19:30, 21:00. Changing the
+span also needs more than a repaint: `millisPerPixel` is derived from it and
+`scrollX` is measured in pixels against that, so a repaint alone draws the grid
+at the new scale scrolled to a position computed at the old one.
 
 ---
 

@@ -172,14 +172,31 @@ viewportHeight)` in `ChannelListGeometry.scrollTargetFor`.
 (Phase 3)**, `ScrollAnimation.advanceScroll`. Was invisible at 90px rows purely
 by arithmetic accident.
 
-**`TVGuide.animateScroll` still has that second bug** (`TVGuide.tsx:1011`) — it
-is the same four lines, unfixed, and its `scrollAnimationId` is not passed
-through `advanceScroll`. It does not currently misbehave: the guide's rows are
-a fixed height whose delta divides evenly, which is exactly the accident that
-hid it in the channel list. Left alone rather than changed blind, because the
-guide's scroll model also carries a horizontal axis and its own
-`VISIBLE_CHANNEL_COUNT` bound, and none of that is covered by tests yet. Point
-it at `ScrollAnimation` when the guide next gets worked on.
+**`TVGuide.animateScroll` still has that second bug** — the same four lines,
+unfixed, not routed through `advanceScroll`.
+
+Re-examined during Phase 4, when scaling the guide's row height with the text
+size looked like it would expose the bug: the delta is `distance /
+(rowHeight / 5)`, so the animation lands exactly only when the row height is a
+multiple of 5, which 75 is and the scaled 68 / 86 / 98 are not. It does not,
+and the reason is not the one recorded here before. **The animated branch is
+unreachable.** Every caller of `scrollToChannelPosition` passes
+`withAnimation: false` — the two `recalculateAndRedraw` sites, `scrollUp`,
+`scrollDown`, and the Phase 4 appearance effect.
+
+Which is just as well, because the branch would not work if it were reached.
+`getScrollY()` defaults to `neglect = true` and returns a literal `0`, so
+`animateScroll` compares the target against 0 rather than the current offset
+and assigns `0 + delta` rather than accumulating. Scrolling up would cancel on
+the first frame and scrolling down would set the same offset forever, at one
+full repaint per frame. The non-animated path is unaffected: it assigns the
+target absolutely, and everything that reads the offset for drawing calls
+`getScrollY(false)`.
+
+So this is dead code carrying two bugs rather than one. Deleting it is
+probably better than fixing it, but that is a decision for whoever next works
+on the guide's scroll model — which also carries a horizontal axis and its own
+`VISIBLE_CHANNEL_COUNT` bound, none of it under test.
 
 ## Layout and visual items carried over
 
@@ -218,6 +235,13 @@ deliberately left alone there because neither is a colour question.
   theming because they identify hardware. What remains is the behaviour
   question: gate the legend on whether those keys exist, or replace it with
   the gestures that do work.
+
+- **The menu truncates its own labels.** `Menu`'s `LabeledIconButton` rows clip
+  at roughly nine characters, so "Recordings" has always drawn as
+  "Recordin..." and Phase 4's new entry draws as "Appeara...". Not caused by
+  that entry, but it is now two rows out of seven rather than one, which is
+  past the point where it reads as a rendering fault rather than a long word.
+  The fix is a width on `.menu`, or shorter labels.
 
 ## Interaction items worth revisiting
 
