@@ -21,6 +21,7 @@ import { channelInitials } from '../utils/ChannelInitials';
 import { createFrameThrottle } from '../utils/FrameThrottle';
 import { scrollThumb } from '../utils/ScrollIndicator';
 import { advanceScroll } from '../utils/ScrollAnimation';
+import { scaled } from '../utils/Appearance';
 
 const VERTICAL_SCROLL_TOP_PADDING_ITEM = 5;
 const IS_DEBUG = false;
@@ -54,8 +55,9 @@ const ChannelList = (props: {
         setActiveFilter,
         favoritesVersion,
         bumpFavoritesVersion,
-        density
+        appearance
     } = useContext(AppContext);
+    const { density, textScale, showChannelNumbers } = appearance;
     const canvas = useRef<HTMLCanvasElement>(null);
     const listWrapper = useRef<HTMLDivElement>(null);
     const scrollAnimationId = useRef(0);
@@ -88,14 +90,21 @@ const ChannelList = (props: {
     // Row height and text sizes come from the density descriptor; everything
     // horizontal below is shared, so switching density changes the rhythm of
     // the list without moving a single column sideways.
-    const mChannelLayoutTextSize = density.nameTextSize;
-    const mChannelLayoutEventTextSize = 26;
-    const mChannelLayoutNumberTextSize = density.numberTextSize;
+    //
+    // The text scale then multiplies *both* the text and the boxes around it.
+    // Scaling only the text is the tempting version and it is wrong: at
+    // Largest a 32px name becomes 42px inside an unchanged 48px compact row,
+    // and the 38px channel number becomes 49px, wide enough that a three-digit
+    // number right-aligned at x+70 starts at x-11 and is clipped by the edge
+    // of the canvas. Row height and the left gutter scale with it instead.
+    const mChannelLayoutTextSize = scaled(density.nameTextSize, textScale);
+    const mChannelLayoutEventTextSize = scaled(26, textScale);
+    const mChannelLayoutNumberTextSize = scaled(density.numberTextSize, textScale);
     const mChannelLayoutTextColor = getTheme().textPrimary;
     const mChannelLayoutTitleTextColor = getTheme().textSecondary;
     const mChannelLayoutMargin = 3;
     const mChannelLayoutPadding = 7;
-    const mChannelLayoutHeight = density.rowHeight;
+    const mChannelLayoutHeight = scaled(density.rowHeight, textScale);
     const mChannelLayoutWidth = 900;
     // The selected row used to be flooded with solid cyan, which put the
     // #cccccc row text at poor contrast against it - the single most obvious
@@ -112,12 +121,25 @@ const ChannelList = (props: {
     // the two drifting apart puts drawn rows and click targets out of step,
     // silently.
     const mChannelListTopOffset = 0;
-    // x-offset of the name column (channel name, recording mark, event
-    // progress bar + text) from the row's left edge. Was a bare 90 in three
-    // places (plus the two derived width calculations below) until the
-    // favorite star needed room to its left - see the favorite marker
-    // comment in drawChannelItem for why this moved from 90 to 114.
-    const mChannelLayoutNameLeft = 114;
+    // The left gutter, as three offsets that must stay in step: the channel
+    // number's right edge, the favourite star's centre, and the left edge of
+    // the name column (channel name, recording mark, event progress bar and
+    // text).
+    //
+    // Derived rather than three literals, because they have to move together
+    // twice over. The star's slot was too narrow for its own glyph until the
+    // name column moved from 90 to 114 to open it - see the favorite marker
+    // comment in drawChannelItem - and now the whole gutter also scales with
+    // the text, and collapses when the channel numbers are switched off.
+    // Turning the numbers off without reclaiming their column would leave 70px
+    // of empty black where a number used to be, which reads as a rendering
+    // fault rather than as a setting.
+    //
+    // At Normal with numbers on these are 70, 92 and 114 - the values they
+    // have always had.
+    const mChannelNumberRight = showChannelNumbers ? scaled(70, textScale) : 0;
+    const mFavoriteMarkerCenter = mChannelNumberRight + scaled(22, textScale);
+    const mChannelLayoutNameLeft = mFavoriteMarkerCenter + scaled(22, textScale);
     // The scroll indicator's track runs down the right edge of the list, and
     // the artwork column gives up mScrollIndicatorGutter to make room for it.
     // mChannelArtRight is the single right edge every art-column calculation
@@ -318,12 +340,20 @@ const ChannelList = (props: {
         }
 
         // channel number
-        CanvasUtils.writeText(canvas, channel.getChannelID().toString(), drawingRect.left + 70, drawingRect.middle, {
-            fontSize: mChannelLayoutNumberTextSize,
-            textAlign: 'right',
-            fillStyle: mChannelLayoutTextColor,
-            isBold: true
-        });
+        if (showChannelNumbers) {
+            CanvasUtils.writeText(
+                canvas,
+                channel.getChannelID().toString(),
+                drawingRect.left + mChannelNumberRight,
+                drawingRect.middle,
+                {
+                    fontSize: mChannelLayoutNumberTextSize,
+                    textAlign: 'right',
+                    fillStyle: mChannelLayoutTextColor,
+                    isBold: true
+                }
+            );
+        }
 
         // channel line
         const currentEvent = epgData.getEventAtTimestamp(position, EPGUtils.getNow());
@@ -424,24 +454,23 @@ const ChannelList = (props: {
             }
         }
 
-        // favorite marker - placed in the gap between the right-aligned channel
-        // number (right edge pinned at left+70, fontSize 38) and the name
-        // column (now left+mChannelLayoutNameLeft=114, fontSize 32). A 32px
-        // '★' glyph is roughly 1em (~32px) wide, so centering it in the
-        // original 70-90 gap (at left+80, spanning ~64-96) still overlapped
-        // both the number and the name column by a few px on each side - the
-        // gap was only 20px wide, too narrow for a 32px glyph regardless of
-        // where within it the glyph was centered. The name column (and the
-        // recording mark and both width calculations that must stay in step
-        // with it) moved right by 24px instead of shrinking the star, opening
-        // a 70-114 gap; the star now centers at left+92, spanning ~76-108 -
-        // clear of the number (70) by ~6px and the name column (114) by ~6px.
+        // favorite marker - in the gap between the right-aligned channel number
+        // and the name column. A 32px '★' glyph is roughly 1em (~32px) wide, so
+        // centering it in the original 70-90 gap (at left+80, spanning ~64-96)
+        // overlapped both the number and the name column by a few px on each
+        // side - the gap was only 20px wide, too narrow for a 32px glyph
+        // regardless of where within it the glyph was centered. The name column
+        // moved right by 24px instead of shrinking the star, opening a 70-114
+        // gap; at Normal the star centers at left+92, spanning ~76-108 - clear
+        // of the number by ~6px on each side. That 22px-either-side rule is
+        // what mFavoriteMarkerCenter and mChannelLayoutNameLeft encode, so it
+        // survives both the text scale and the numbers being switched off.
         // The channel logo remains on the row's *right* edge (see
         // getDrawingRectForChannelImage: right = width - margin, left = right
         // - height * 1.3, i.e. x 780-897 of the 900-wide row) and is
         // unaffected by any of this.
         if (FavoritesStore.has(channel.getUUID())) {
-            CanvasUtils.writeText(canvas, '★', drawingRect.left + 92, drawingRect.middle, {
+            CanvasUtils.writeText(canvas, '★', drawingRect.left + mFavoriteMarkerCenter, drawingRect.middle, {
                 fontSize: mChannelLayoutTextSize,
                 textAlign: 'center',
                 fillStyle: getTheme().favorite,
@@ -977,13 +1006,19 @@ const ChannelList = (props: {
     }, [activeFilter, favoritesVersion]);
 
     useEffect(() => {
-        // Row height changed, so the existing scrollY points at a different
-        // channel than it did a moment ago. Recalculating rather than merely
-        // repainting re-derives it from the cursor position, which is what
-        // keeps the channel the user was looking at under their eyes across
-        // the switch. Without animation: this is a layout change, not a move.
+        // Row height may have changed - by density, or by text scale - so the
+        // existing scrollY points at a different channel than it did a moment
+        // ago. Recalculating rather than merely repainting re-derives it from
+        // the cursor position, which is what keeps the channel the user was
+        // looking at under their eyes across the switch. Without animation:
+        // this is a layout change, not a move.
+        //
+        // The whole appearance object is the dependency, not density alone. It
+        // is replaced wholesale on any change, so this also covers the palette
+        // and the channel-number gutter - a repaint they need anyway, and one
+        // recalculation is cheaper than reasoning about which fields moved.
         recalculateAndRedraw(false);
-    }, [density]);
+    }, [appearance]);
 
     useEffect(() => {
         // logos load on demand now, so a row can be drawn before its logo

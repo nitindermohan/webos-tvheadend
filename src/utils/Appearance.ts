@@ -1,5 +1,5 @@
 import { DEFAULT_DENSITY, Density, DENSITIES, densityForKey } from './Density';
-import { ACCENTS, accentForKey, Palette, THEMES, themeForKey, withAccent } from './Theme';
+import { ACCENTS, accentForKey, applyTheme, Palette, THEMES, themeForKey, withAccent } from './Theme';
 
 /**
  * Everything the user can change about how the app looks, in two halves: the
@@ -169,3 +169,32 @@ export const resolveAppearance = (stored: StoredAppearance): Appearance => ({
 });
 
 export const DEFAULT_APPEARANCE: Appearance = resolveAppearance({});
+
+/** `--font-scale`, for the stylesheet. See `publishAppearance`. */
+export const FONT_SCALE_VARIABLE = '--font-scale';
+
+/**
+ * Push an appearance to the two consumers that cannot be handed props.
+ *
+ * The palette module, because canvas cannot read CSS custom properties and so
+ * needs plain strings (see Theme.ts), and the document root, because the
+ * stylesheet has no other way to learn the text scale - the DOM rows in the
+ * groups column and the settings screen size themselves from it.
+ *
+ * Called synchronously from the setter rather than from an effect. Effects run
+ * child-first, so a provider-level effect would fire *after* every canvas
+ * surface had already repainted - once, with the previous palette, and then
+ * never again.
+ *
+ * Notably absent: a CanvasUtils.clearFontMetricsCache() call. The Phase 0
+ * flush exists because a measurement taken in the fallback font was cached
+ * under the key `32px Inter` and then reused for the real one - same key,
+ * wrong answer. A text-size change produces a *different* key (`42px Inter`),
+ * so the old entries stay correct for the sizes they describe and the new ones
+ * measure themselves. Flushing here would throw away good measurements and
+ * make every size change cost a fresh measureText on every visible row.
+ */
+export const publishAppearance = (appearance: Appearance): void => {
+    applyTheme(appearance.palette);
+    document.documentElement.style.setProperty(FONT_SCALE_VARIABLE, String(appearance.textScale));
+};

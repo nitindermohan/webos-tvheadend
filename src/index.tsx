@@ -4,7 +4,8 @@ import App from './App';
 import kind from '@enact/core/kind';
 import MoonstoneDecorator from '@enact/moonstone/MoonstoneDecorator';
 import { AppContextProvider } from './AppContext';
-import { applyTheme, OLED_BLACK } from './utils/Theme';
+import { publishAppearance } from './utils/Appearance';
+import AppearanceStore from './utils/AppearanceStore';
 import { GROUPS_WIDTH } from './components/GroupsColumn';
 
 // Bundled in the ipk rather than relying on a system font, so metrics and
@@ -26,11 +27,13 @@ import '@fontsource/inter/latin-700.css';
 import '@fontsource/inter/latin-ext-400.css';
 import '@fontsource/inter/latin-ext-700.css';
 
-// Before the first render, so no surface ever paints with unstamped
-// custom properties. Phase 4 will read the user's choice here instead of
-// hardcoding the palette; everything downstream already goes through
-// getTheme(), so that stays a one-line change.
-applyTheme(OLED_BLACK);
+// Before the first render, so no surface ever paints with unstamped custom
+// properties - and before AppContextProvider reads the same record into state,
+// so the palette the canvas draws with and the one the stylesheet holds cannot
+// disagree at startup. A corrupt or absent record resolves to the defaults
+// here rather than throwing, which matters because this line runs before
+// anything is on screen to show an error with.
+publishAppearance(AppearanceStore.resolved());
 
 // The groups column has the same two-consumer problem as the palette: the
 // components size themselves from the constant, while the stylesheet needs the

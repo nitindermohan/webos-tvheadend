@@ -8,7 +8,8 @@ import ChannelFilter from './models/ChannelFilter';
 import CategoryStore from './utils/CategoryStore';
 import FavoritesStore from './utils/FavoritesStore';
 import { whenFontsReady } from './utils/FontReadiness';
-import { DEFAULT_DENSITY, Density } from './utils/Density';
+import { Appearance, StoredAppearance, publishAppearance, resolveAppearance } from './utils/Appearance';
+import AppearanceStore from './utils/AppearanceStore';
 
 export enum AppVisibilityState {
     FOCUSED = 'focused',
@@ -54,17 +55,19 @@ type AppContext = {
     favoritesVersion: number;
     bumpFavoritesVersion: () => void;
     /**
-     * How tall channel rows are and what fits in them.
+     * Everything the user can change about how the app looks, resolved.
      *
-     * Held here rather than in ChannelList so that changing it repaints - the
-     * canvas has no other way to learn about it, and the appearance settings
-     * screen (Phase 4) needs somewhere outside the list to set it from. It is
-     * deliberately *not* persisted yet: Phase 4's AppearanceStore owns the
-     * whole appearance slice, and adding a lone localStorage key for density
-     * now would only have to be folded back in.
+     * Held here rather than read from the store at each call site so that a
+     * change repaints: the canvas surfaces have no other way to learn about
+     * one, and they list this object in their draw effects' dependencies.
+     * Replaced wholesale on every change, so object identity is the signal -
+     * no separate version counter, unlike logoVersion and fontVersion, which
+     * announce a resource that arrived rather than a value that changed.
      */
-    density: Density;
-    setDensity: (value: Density) => void;
+    appearance: Appearance;
+    /** The raw choice keys, for the settings screen to render its selection. */
+    storedAppearance: StoredAppearance;
+    setAppearanceChoice: (settingId: string, choiceKey: string) => void;
 };
 
 const AppContext = createContext({} as AppContext);
@@ -118,7 +121,11 @@ export const AppContextProvider = ({ children }: { children: JSX.Element }) => {
     const [channelTags, setChannelTags] = useState<ChannelTag[]>([]);
     const [activeFilter, setActiveFilterState] = useState<ChannelFilter>(CategoryStore.getActiveFilter());
     const [favoritesVersion, setFavoritesVersion] = useState(0);
-    const [density, setDensity] = useState<Density>(DEFAULT_DENSITY);
+    // Read once, lazily. index.tsx has already published this same record to
+    // the palette module and the stylesheet before the first render, so the
+    // two cannot disagree at startup.
+    const [storedAppearance, setStoredAppearance] = useState<StoredAppearance>(() => AppearanceStore.read());
+    const [appearance, setAppearance] = useState<Appearance>(() => resolveAppearance(storedAppearance));
 
     const appContext: AppContext = {
         menuState: menuState,
@@ -202,8 +209,22 @@ export const AppContextProvider = ({ children }: { children: JSX.Element }) => {
             // still stale
             setFavoritesVersion((version) => version + 1);
         },
-        density: density,
-        setDensity: (value: Density) => setDensity(value)
+        appearance: appearance,
+        storedAppearance: storedAppearance,
+        setAppearanceChoice: (settingId: string, choiceKey: string) => {
+            const next = { ...storedAppearance, [settingId]: choiceKey };
+            const resolved = resolveAppearance(next);
+
+            // Published synchronously, before the state updates that trigger
+            // the repaint. Effects run child-first, so doing this in a
+            // provider-level effect would hand every canvas surface the
+            // *previous* palette on the one render that repaints them.
+            publishAppearance(resolved);
+
+            AppearanceStore.write(next);
+            setStoredAppearance(next);
+            setAppearance(resolved);
+        }
     };
 
     return <AppContext.Provider value={appContext}>{children}</AppContext.Provider>;

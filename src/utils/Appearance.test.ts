@@ -3,12 +3,14 @@ import {
     Appearance,
     DEFAULT_APPEARANCE,
     EPG_SPANS,
+    FONT_SCALE_VARIABLE,
     TEXT_SCALES,
+    publishAppearance,
     resolveAppearance,
     scaled
 } from './Appearance';
 import { COMPACT, LIST } from './Density';
-import { GRAPHITE_VIOLET, OLED_BLACK, SLATE_CYAN } from './Theme';
+import { GRAPHITE_VIOLET, OLED_BLACK, SLATE_CYAN, getTheme } from './Theme';
 
 /**
  * Two failures matter here and neither is loud.
@@ -180,6 +182,37 @@ describe('Appearance', () => {
             setting?.choices.forEach((choice) => {
                 expect(EPG_SPANS[choice.key]).toBeGreaterThan(0);
             });
+        });
+    });
+
+    describe('publishAppearance', () => {
+        afterEach(() => {
+            document.documentElement.removeAttribute('style');
+            publishAppearance(DEFAULT_APPEARANCE);
+        });
+
+        it('hands the palette to the module canvas reads', () => {
+            // canvas cannot read CSS custom properties, so stamping alone
+            // would theme the stylesheet and leave every canvas surface
+            // painting the previous palette
+            publishAppearance(resolveAppearance({ theme: 'graphite' }));
+
+            expect(getTheme()).toEqual(GRAPHITE_VIOLET);
+        });
+
+        it('stamps the text scale for the stylesheet', () => {
+            publishAppearance(resolveAppearance({ textSize: 'largest' }));
+
+            expect(document.documentElement.style.getPropertyValue(FONT_SCALE_VARIABLE)).toBe(
+                String(TEXT_SCALES.largest)
+            );
+        });
+
+        it('publishes the accent, not just the theme', () => {
+            publishAppearance(resolveAppearance({ theme: 'oled', accent: 'rose' }));
+
+            expect(getTheme().accent).not.toBe(OLED_BLACK.accent);
+            expect(document.documentElement.style.getPropertyValue('--accent')).toBe(getTheme().accent);
         });
     });
 
