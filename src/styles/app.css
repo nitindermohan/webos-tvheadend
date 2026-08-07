@@ -25,6 +25,17 @@ body {
     overflow: hidden;
 }
 
+/* The text size setting, for the DOM half of the UI. index.tsx stamps the real
+   value on the root element before the first render; this declaration only
+   matters if that ever fails to run, and it matters a lot when it does -
+   `calc(27px * var(--font-scale))` with the variable unset is an invalid
+   length, and every rule using it is dropped, leaving the text at the
+   browser's 16px default. The canvas half cannot read this and takes the same
+   number through AppContext instead. */
+html {
+    --font-scale: 1;
+}
+
 body {
     background-color: var(--surface-base);
     font-family: 'Inter', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif;
@@ -297,14 +308,16 @@ body {
    on a TV, where the remote already costs a frame or two of its own. */
 .groupsColumnItem,
 .detailsAction,
-.categoryRow {
+.categoryRow,
+.settingChoice {
     cursor: pointer;
     transition: background-color 120ms ease-out, color 120ms ease-out, border-color 120ms ease-out;
 }
 
 .groupsColumnItem:active,
 .detailsAction:active,
-.categoryRow:active {
+.categoryRow:active,
+.settingChoice:active {
     transition-duration: 0s;
     background-color: rgba(var(--accent-rgb), 0.34);
     color: var(--text-primary);
@@ -315,7 +328,8 @@ body {
    in two places at once. */
 .groupsColumnItem:hover:not(.focused),
 .detailsAction:hover:not(.focused),
-.categoryRow:hover:not(.focused) {
+.categoryRow:hover:not(.focused),
+.settingChoice:hover:not(.selected) {
     color: var(--text-primary);
     background-color: rgba(var(--text-secondary-rgb), 0.14);
 }
@@ -340,7 +354,7 @@ body {
 }
 
 .groupsColumnTitle {
-    font-size: 20px;
+    font-size: calc(20px * var(--font-scale));
     font-weight: 700;
     letter-spacing: 2px;
     text-transform: uppercase;
@@ -349,7 +363,7 @@ body {
 }
 
 .groupsColumnItem {
-    font-size: 27px;
+    font-size: calc(27px * var(--font-scale));
     color: var(--text-secondary);
     padding: 15px 24px;
     /* the bar is always reserved so that becoming active or focused does not
@@ -383,7 +397,7 @@ body {
     width: 900px;
     box-sizing: border-box;
     padding: 16px 24px;
-    font-size: 24px;
+    font-size: calc(24px * var(--font-scale));
     color: var(--text-secondary);
     background-color: rgba(var(--surface-raised-rgb), 0.92);
     z-index: 9;
@@ -404,7 +418,7 @@ body {
 }
 
 .categoryHint {
-    font-size: 24px;
+    font-size: calc(24px * var(--font-scale));
     color: var(--text-secondary);
     max-width: 1100px;
 }
@@ -412,7 +426,7 @@ body {
 .categoryRow {
     display: flex;
     align-items: center;
-    font-size: 30px;
+    font-size: calc(30px * var(--font-scale));
     padding: 12px 18px;
     border: 2px solid transparent;
     border-radius: 8px;
@@ -468,7 +482,7 @@ body {
 
 .categoryNew {
     margin-left: 18px;
-    font-size: 20px;
+    font-size: calc(20px * var(--font-scale));
     text-transform: uppercase;
     color: var(--accent);
 }
@@ -478,7 +492,7 @@ body {
 }
 
 .detailsAction {
-    font-size: 26px;
+    font-size: calc(26px * var(--font-scale));
     color: var(--text-secondary);
     padding: 10px 16px;
     border: 2px solid transparent;
@@ -508,4 +522,80 @@ body {
     border-color: var(--focus);
     color: var(--text-primary);
     background-color: rgba(var(--text-secondary-rgb), 0.16);
+}
+
+/* Appearance settings.
+
+   The panel is translucent rather than opaque, unlike the TVH setup form, so
+   the channel list and the video behind it stay visible while a setting is
+   being changed. That is the whole reason the settings apply live: the user
+   judges a theme or a row density against the thing it applies to, not against
+   a preview. */
+.appearanceSettings {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    box-sizing: border-box;
+    padding: 60px 80px;
+    overflow-y: auto;
+    color: var(--text-primary);
+    background-color: rgba(var(--surface-raised-rgb), 0.93);
+    z-index: 30;
+}
+
+.settingRow {
+    display: flex;
+    align-items: center;
+    padding: 14px 18px;
+    border: 2px solid transparent;
+    border-radius: 8px;
+}
+
+.settingRow.focused {
+    border-color: var(--focus);
+    background-color: rgba(var(--text-secondary-rgb), 0.16);
+}
+
+.settingLabel {
+    flex: 1;
+    font-size: calc(30px * var(--font-scale));
+    /* the label column is fixed so the choice strips line up down the page -
+       a strip that starts at a different x on every row reads as a list of
+       unrelated controls rather than one column of them */
+    max-width: 620px;
+    padding-right: 40px;
+}
+
+.settingHint {
+    display: block;
+    padding-top: 4px;
+    font-size: calc(21px * var(--font-scale));
+    color: var(--text-secondary);
+}
+
+.settingChoices {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.settingChoice {
+    font-size: calc(25px * var(--font-scale));
+    color: var(--text-secondary);
+    padding: 8px 20px;
+    border: 2px solid rgba(var(--text-secondary-rgb), 0.35);
+    border-radius: 999px;
+    white-space: nowrap;
+}
+
+/* Selection, not focus: this is the value in force. The cursor is the border
+   around the whole row, which is why this uses the accent and not the amber -
+   the two are visible at once on the focused row and must not be confused. */
+.settingChoice.selected {
+    color: var(--text-on-accent);
+    background-color: var(--accent);
+    border-color: var(--accent);
+    font-weight: 700;
 }

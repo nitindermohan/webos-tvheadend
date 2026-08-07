@@ -10,6 +10,7 @@ import Menu, { MenuItem } from './components/Menu';
 import FavoritesStore from './utils/FavoritesStore';
 import CategoryStore from './utils/CategoryStore';
 import CategorySetup from './components/CategorySetup';
+import AppearanceSettings from './components/AppearanceSettings';
 import RemoteKeys from './utils/RemoteKeys';
 
 export enum AppViewState {
@@ -18,7 +19,8 @@ export enum AppViewState {
     RECORDINGS,
     HELP,
     CONTACT,
-    CATEGORIES
+    CATEGORIES,
+    APPEARANCE
 }
 
 const App = () => {
@@ -67,6 +69,12 @@ const App = () => {
             label: 'Categories',
             action: () => updateAppViewState(AppViewState.CATEGORIES),
             isActive: appViewState === AppViewState.CATEGORIES
+        },
+        {
+            icon: 'brightness',
+            label: 'Appearance',
+            action: () => updateAppViewState(AppViewState.APPEARANCE),
+            isActive: appViewState === AppViewState.APPEARANCE
         },
         {
             icon: 'denselist',
@@ -298,6 +306,9 @@ const App = () => {
             {appViewState === AppViewState.SETTINGS && <TVHSettings unmount={() => setAppViewState(AppViewState.TV)} />}
             {appViewState === AppViewState.CATEGORIES && (
                 <CategorySetup unmount={() => setAppViewState(AppViewState.TV)} />
+            )}
+            {appViewState === AppViewState.APPEARANCE && (
+                <AppearanceSettings unmount={() => setAppViewState(AppViewState.TV)} />
             )}
             {appViewState === AppViewState.TV && isChannelsRetrieved && <TV />}
             {appViewState === AppViewState.RECORDINGS && <Player />}
