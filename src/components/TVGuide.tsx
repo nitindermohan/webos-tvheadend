@@ -16,12 +16,31 @@ import GroupsColumn, { GROUPS_WIDTH } from './GroupsColumn';
 import { buildFilterEntries, indexOfFilter } from '../utils/FilterEntries';
 import { wrapIndex } from '../utils/ListNavigation';
 import CategoryStore from '../utils/CategoryStore';
+import { scaled } from '../utils/Appearance';
 import '../styles/app.css';
 
 const DAYS_BACK_MILLIS = 2 * 60 * 60 * 1000; // 2 hours
 // const DAYS_FORWARD_MILLIS = 1 * 24 * 60 * 60 * 1000; // 1 days
-const HOURS_IN_VIEWPORT_MILLIS = 2 * 60 * 60 * 1000; // 2 hours
-const TIME_LABEL_SPACING_MILLIS = 30 * 60 * 1000; // 30 minutes
+
+/**
+ * Minutes between time labels, for a given span.
+ *
+ * Not a constant any more, because the labels have to thin out as the span
+ * widens or they collide: twelve hours at the old fixed 30 minutes is 24
+ * labels across ~1800px, and a bold 28px "20:30" is about 70px wide in a 75px
+ * slot. Half-hour marks stay for every span that can hold them, since they are
+ * what makes a programme's start time readable at a glance.
+ */
+const labelSpacingMinutes = (spanHours: number): number => (spanHours >= 8 ? 60 : 30);
+
+/**
+ * How present the grid is.
+ *
+ * The row separators were drawn at full textPrimary - pure white against the
+ * programme blocks, heavier than the text they were separating. A ruler should
+ * be readable when looked for and invisible when not.
+ */
+const GRID_LINE_ALPHA = 0.16;
 
 const VISIBLE_CHANNEL_COUNT = 8; // No of channel to show at a time
 // const VERTICAL_SCROLL_BOTTOM_PADDING_ITEM = VISIBLE_CHANNEL_COUNT / 2 - 1;
@@ -42,8 +61,17 @@ const TVGuide = (props: {
         channelTags,
         activeFilter,
         setActiveFilter,
-        favoritesVersion
+        favoritesVersion,
+        appearance
     } = useContext(AppContext);
+    const { textScale, epgSpanHours, epgGridLines } = appearance;
+
+    // How much programming is on screen at once, and how often it is labelled.
+    // Both were module constants pinned at two hours; they are the same numbers
+    // at the default setting.
+    const mHoursInViewportMillis = epgSpanHours * 60 * 60 * 1000;
+    const mTimeLabelSpacingMinutes = labelSpacingMinutes(epgSpanHours);
+    const mTimeLabelSpacingMillis = mTimeLabelSpacingMinutes * 60 * 1000;
 
     const canvas = useRef<HTMLCanvasElement>(null);
     const epgWrapper = useRef<HTMLDivElement>(null);
@@ -75,7 +103,7 @@ const TVGuide = (props: {
     const mEPGBackground = getTheme().surfaceBase;
     const mChannelLayoutMargin = 3;
     const mChannelLayoutPadding = 10;
-    const mChannelLayoutHeight = 75;
+    const mChannelLayoutHeight = scaled(75, textScale);
     const mChannelLayoutWidth = 120;
     const mChannelLayoutBackground = getTheme().surfaceRaised;
     const mChannelLayoutBackgroundFocus = getTheme().surfaceCard;
@@ -84,20 +112,20 @@ const TVGuide = (props: {
     const mEventLayoutBackgroundCurrent = getTheme().surfaceCard;
     const mEventLayoutBackgroundFocus = withAlpha(getTheme().accent, 0.85);
     const mEventLayoutTextColor = getTheme().textPrimary;
-    const mEventLayoutTextSize = 28;
+    const mEventLayoutTextSize = scaled(28, textScale);
     const mEventLayoutRecordingColor = getTheme().danger;
 
     const mDetailsLayoutMargin = 5;
     const mDetailsLayoutPadding = 8;
     const mDetailsLayoutTextColor = getTheme().textPrimary;
-    const mDetailsLayoutTitleTextSize = 30;
-    const mDetailsLayoutSubTitleTextSize = 26;
+    const mDetailsLayoutTitleTextSize = scaled(30, textScale);
+    const mDetailsLayoutSubTitleTextSize = scaled(26, textScale);
     const mDetailsLayoutSubTitleTextColor = getTheme().textSecondary;
-    const mDetailsLayoutDescriptionTextSize = 28;
+    const mDetailsLayoutDescriptionTextSize = scaled(28, textScale);
 
-    const mTimeBarHeight = 70;
-    const mTimeBarTextSize = 32;
-    const mTimeBarNowTextSize = 22;
+    const mTimeBarHeight = scaled(70, textScale);
+    const mTimeBarTextSize = scaled(32, textScale);
+    const mTimeBarNowTextSize = scaled(22, textScale);
     const mTimeBarLineWidth = 3;
     // Two different jobs used to share one constant, which is why migrating it
     // to `danger` washed the whole past region red - a colour that means
@@ -118,7 +146,7 @@ const TVGuide = (props: {
     };
 
     const calculateMillisPerPixel = () => {
-        return HOURS_IN_VIEWPORT_MILLIS / (getWidth() - mChannelLayoutWidth - mChannelLayoutMargin);
+        return mHoursInViewportMillis / (getWidth() - mChannelLayoutWidth - mChannelLayoutMargin);
     };
 
     const calculatedBaseLine = () => {
@@ -221,6 +249,10 @@ const TVGuide = (props: {
             // canvas.fillRect(drawingRect.left, drawingRect.top, drawingRect.width, drawingRect.height);
             drawBackground(canvas, drawingRect);
             drawChannelListItems(canvas, drawingRect);
+            // Under the events, not over them: a ruler is a background, and a
+            // line drawn across a programme block reads as the block being
+            // divided rather than as the hour it starts on.
+            drawGridLines(canvas);
             drawEvents(canvas, drawingRect);
             drawTimebar(canvas, drawingRect);
             //drawResetButton(canvas, drawingRect);
@@ -407,13 +439,17 @@ const TVGuide = (props: {
         drawingRect.right = drawingRect.left + getWidth();
         drawingRect.bottom = drawingRect.top + mTimeBarHeight;
         // draw time stamps
-        for (let i = 0; i < HOURS_IN_VIEWPORT_MILLIS / TIME_LABEL_SPACING_MILLIS; i++) {
-            // Get time and round to nearest half hour
+        for (let i = 0; i < mHoursInViewportMillis / mTimeLabelSpacingMillis; i++) {
+            // Get time and round to the nearest label boundary
             let time =
-                TIME_LABEL_SPACING_MILLIS *
-                ((timeLowerBoundary.current + TIME_LABEL_SPACING_MILLIS * i + TIME_LABEL_SPACING_MILLIS / 2) /
-                    TIME_LABEL_SPACING_MILLIS);
-            time = EPGUtils.getRoundedDate(30, new Date(time)).getTime();
+                mTimeLabelSpacingMillis *
+                ((timeLowerBoundary.current + mTimeLabelSpacingMillis * i + mTimeLabelSpacingMillis / 2) /
+                    mTimeLabelSpacingMillis);
+            // Rounded to the *label* spacing, not a hardcoded 30 minutes. At a
+            // twelve-hour span the labels are an hour apart, and rounding them
+            // to half hours would put half of them on :30 - an hourly ruler
+            // reading 19:00, 19:30, 21:00.
+            time = EPGUtils.getRoundedDate(mTimeLabelSpacingMinutes, new Date(time)).getTime();
 
             const timeText = EPGUtils.toTimeString(time, locale);
             const x = getXFrom(time);
@@ -512,6 +548,48 @@ const TVGuide = (props: {
         });
     };
 
+    /**
+     * The vertical half of the grid: one line per time label.
+     *
+     * Drawn at the same interval as the timebar labels above rather than at
+     * every hour, so a line always sits under the label it belongs to - at a
+     * two-hour span that is every half hour, and at twelve it thins to hourly
+     * along with the labels.
+     *
+     * Faint on purpose. The grid's job is to let the eye carry a start time
+     * down the channel column; at full strength it competes with the programme
+     * blocks it is meant to be measuring.
+     */
+    const drawGridLines = (canvas: CanvasRenderingContext2D) => {
+        if (!epgGridLines) {
+            return;
+        }
+
+        const top = mTimeBarHeight + mChannelLayoutMargin;
+        const bottom = getChannelListHeight();
+        // The grid must not run under the channel column on the left, which is
+        // a solid panel with its own background - a line crossing it would
+        // read as a border of that panel rather than as a time mark.
+        const leftEdge = mChannelLayoutWidth + mChannelLayoutMargin;
+
+        canvas.beginPath();
+        canvas.lineWidth = 1;
+        canvas.strokeStyle = withAlpha(mEventLayoutTextColor, GRID_LINE_ALPHA);
+        for (let i = 0; i < mHoursInViewportMillis / mTimeLabelSpacingMillis + 1; i++) {
+            const time = EPGUtils.getRoundedDate(
+                mTimeLabelSpacingMinutes,
+                new Date(timeLowerBoundary.current + mTimeLabelSpacingMillis * i)
+            ).getTime();
+            const x = getXFrom(time);
+            if (x < leftEdge) {
+                continue;
+            }
+            canvas.moveTo(x, top);
+            canvas.lineTo(x, bottom);
+        }
+        canvas.stroke();
+    };
+
     const drawEvents = (canvas: CanvasRenderingContext2D, drawingRect: Rect) => {
         // Background
         drawingRect.left = mChannelLayoutWidth + mChannelLayoutMargin;
@@ -534,13 +612,15 @@ const TVGuide = (props: {
             // } else {
             //     canvas.globalAlpha = 1;
             // }
-            // draw horizontal lines
-            canvas.beginPath();
-            canvas.lineWidth = 0.5;
-            canvas.strokeStyle = mEventLayoutTextColor;
-            canvas.moveTo(mChannelLayoutWidth + mChannelLayoutMargin, getTopFrom(pos));
-            canvas.lineTo(getWidth(), getTopFrom(pos));
-            canvas.stroke();
+            // the row separator, part of the same grid as the hour lines
+            if (epgGridLines) {
+                canvas.beginPath();
+                canvas.lineWidth = 0.5;
+                canvas.strokeStyle = withAlpha(mEventLayoutTextColor, GRID_LINE_ALPHA);
+                canvas.moveTo(mChannelLayoutWidth + mChannelLayoutMargin, getTopFrom(pos));
+                canvas.lineTo(getWidth(), getTopFrom(pos));
+                canvas.stroke();
+            }
 
             // The list is ordered by time, so the walk stops at the first event
             // past the window. This used to be a forEach with a `return`, which
@@ -966,7 +1046,7 @@ const TVGuide = (props: {
 
             resetBoundaries();
             setTimePosition(targetTimePosition);
-            setScrollX(getXFrom(targetTimePosition - HOURS_IN_VIEWPORT_MILLIS / 2));
+            setScrollX(getXFrom(targetTimePosition - mHoursInViewportMillis / 2));
             setFocusedEventPosition(eventPosition);
         } else {
             setFocusedEventPosition(-1);
@@ -1052,7 +1132,7 @@ const TVGuide = (props: {
         targetEvent && scrollToEventPosition(epgData.getEventPosition(currentChannelPosition, targetEvent));
         resetBoundaries();
         setTimePosition(targetTime);
-        setScrollX(getXFrom(targetTime - HOURS_IN_VIEWPORT_MILLIS / 2));
+        setScrollX(getXFrom(targetTime - mHoursInViewportMillis / 2));
         updateCanvas();
 
         return () => {
@@ -1065,6 +1145,25 @@ const TVGuide = (props: {
         // logos load on demand now - repaint when one arrives
         updateCanvas();
     }, [logoVersion, fontVersion]);
+
+    useEffect(() => {
+        // A repaint is not enough here. millisPerPixel is derived from the
+        // span, and scrollX is measured in pixels against it, so changing the
+        // span while the old boundaries stand leaves the grid drawn at the new
+        // scale and scrolled to a position computed at the old one - the
+        // cursor lands on a programme several hours from the one under it.
+        // Re-anchoring on the time already in focus keeps the same moment in
+        // the middle of the screen while the width of the window changes
+        // around it, which is what makes the setting legible as "more hours"
+        // rather than "the guide jumped".
+        //
+        // The whole appearance object is the dependency: the row height moves
+        // with the text scale too, and one recalculation covers both.
+        const targetTime = timePosition.current;
+        resetBoundaries();
+        setScrollX(getXFrom(targetTime - mHoursInViewportMillis / 2));
+        recalculateAndRedraw(false);
+    }, [appearance]);
 
     useEffect(() => {
         // The lineup underneath us just changed size and order. Every position

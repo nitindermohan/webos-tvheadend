@@ -5,6 +5,7 @@ import AppContext from '../AppContext';
 import ChannelListDetails from './ChannelListDetails';
 import EPGEvent from '../models/EPGEvent';
 import '../styles/app.css';
+import { scaled } from '../utils/Appearance';
 import { getTheme, withAlpha } from '../utils/Theme';
 import DialogPopup from './DialogPopup';
 import EPGChannelRecording from '../models/EPGChannelRecording';
@@ -31,9 +32,10 @@ const RecordingList = (props: {
     unmount: () => void;
     recordings: EPGChannelRecording[];
 }) => {
-    const { imageCache, logoVersion, fontVersion, currentRecordingPosition, setCurrentRecordingPosition, isAnimationsEnabled } = useContext(
+    const { imageCache, logoVersion, fontVersion, currentRecordingPosition, setCurrentRecordingPosition, isAnimationsEnabled, appearance } = useContext(
         AppContext
     );
+    const { textScale } = appearance;
 
     const canvas = useRef<HTMLCanvasElement>(null);
     const listWrapper = useRef<HTMLDivElement>(null);
@@ -41,14 +43,17 @@ const RecordingList = (props: {
     const scrollY = useRef(0);
     const recordPosition = useRef(currentRecordingPosition);
 
-    const mChannelLayoutTextSize = 32;
-    const mChannelLayoutEventTextSize = 26;
-    const mChannelLayoutNumberTextSize = 38;
+    // The text scale, but not the density: a recordings list is a handful of
+    // rows the user reads once, not 900 they scan, so the compact row that
+    // earns its place in the channel list would only make this harder to read.
+    const mChannelLayoutTextSize = scaled(32, textScale);
+    const mChannelLayoutEventTextSize = scaled(26, textScale);
+    const mChannelLayoutNumberTextSize = scaled(38, textScale);
     const mChannelLayoutTextColor = getTheme().textPrimary;
     const mChannelLayoutTitleTextColor = getTheme().textSecondary;
     const mChannelLayoutMargin = 3;
     const mChannelLayoutPadding = 7;
-    const mChannelLayoutHeight = 90;
+    const mChannelLayoutHeight = scaled(90, textScale);
     const mChannelLayoutWidth = 900;
     // same treatment as the channel list: a card fill plus an accent bar,
     // rather than flooding the row and leaving its text hard to read
@@ -511,7 +516,7 @@ const RecordingList = (props: {
         // logos load on demand; without this the list only repaints when the
         // recordings reload, so a logo arriving would never be drawn
         updateCanvas();
-    }, [logoVersion, fontVersion]);
+    }, [logoVersion, fontVersion, appearance]);
 
     useEffect(() => {
         recalculateAndRedraw(false);

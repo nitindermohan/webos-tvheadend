@@ -5,19 +5,25 @@ import CanvasUtils, { WriteTextOptions } from '../utils/CanvasUtils';
 import AppContext from '../AppContext';
 import '../styles/app.css';
 import { getTheme, withAlpha } from '../utils/Theme';
+import { scaled } from '../utils/Appearance';
 import { REMOTE_KEY_COLORS } from '../utils/RemoteKeys';
 
 const ChannelInfo = (props: { unmount: () => void }) => {
-    const { locale, epgData, imageCache, logoVersion, fontVersion, currentChannelPosition } = useContext(AppContext);
+    const { locale, epgData, imageCache, logoVersion, fontVersion, currentChannelPosition, appearance } =
+        useContext(AppContext);
+    const { textScale } = appearance;
 
     const canvas = useRef<HTMLCanvasElement>(null);
     const infoWrapper = useRef<HTMLDivElement>(null);
     const timeoutReference = useRef<NodeJS.Timeout | null>(null);
     const intervalReference = useRef<NodeJS.Timeout | null>(null);
 
-    const mChannelInfoHeight = 150;
-    const mChannelInfoTitleSize = 42;
-    const mChannelInfoKeyDescSize = 20;
+    // The bar grows with its text. Its vertical layout is all derived from
+    // getHeight() / 2 and the title size, so the two have to move together -
+    // scaling the text alone would push the programme line out of a 150px bar.
+    const mChannelInfoHeight = scaled(150, textScale);
+    const mChannelInfoTitleSize = scaled(42, textScale);
+    const mChannelInfoKeyDescSize = scaled(20, textScale);
     const mChannelInfoKeyPadding = 20;
     const mChannelInfoKeyRectWidth = 20;
     const mChannelLayoutTextColor = getTheme().textPrimary;
@@ -362,7 +368,7 @@ const ChannelInfo = (props: { unmount: () => void }) => {
         // logos load on demand; repaint as soon as one arrives rather than
         // waiting up to 500ms for the live-countdown interval to come round
         updateCanvas();
-    }, [logoVersion, fontVersion]);
+    }, [logoVersion, fontVersion, appearance]);
 
     const focus = () => {
         infoWrapper.current?.focus();
