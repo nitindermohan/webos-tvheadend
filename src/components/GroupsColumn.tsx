@@ -1,6 +1,6 @@
 import React from 'react';
 import ChannelFilter from '../models/ChannelFilter';
-import { FilterEntry, isEntryActive } from '../utils/FilterEntries';
+import { categoryHeadingIndex, FilterEntry, isEntryActive } from '../utils/FilterEntries';
 
 /**
  * How much of the screen the column occupies.
@@ -60,38 +60,47 @@ const GroupsColumn = (props: {
         // gesture users will actually make.
         onClick={(event) => event.stopPropagation()}
     >
-        <div className="groupsColumnTitle">Categories</div>
         {props.entries.map((entry, index) => {
             const names = ['groupsColumnItem'];
             if (isEntryActive(entry, props.activeFilter)) names.push('active');
             if (props.isFocused && index === props.focusedIndex) names.push('focused');
             return (
-                <div
-                    className={names.join(' ')}
-                    key={index}
-                    // the browser scrolls the focused row into view rather than
-                    // our own scroll model. The pill rail's worst defect was
-                    // focus moving with nothing following it.
-                    ref={(element) =>
-                        props.isFocused && index === props.focusedIndex && element?.scrollIntoView({ block: 'nearest' })
-                    }
-                    onClick={(event) => {
-                        event.stopPropagation();
-                        props.onSelect(index);
-                    }}
-                    // onMouseMove rather than onMouseEnter, which only fires on
-                    // crossing the row's boundary: a pointer already parked on
-                    // a row when the column *gains* focus would never correct
-                    // the cursor, and the next direction press would move from
-                    // somewhere the user is not looking. Unthrottled because
-                    // the browser does the hit-testing and React bails out of
-                    // re-rendering when the index is unchanged - unlike the
-                    // canvas list, where every mousemove would repaint
-                    // everything.
-                    onMouseMove={() => props.onHover && props.onHover(index)}
-                >
-                    {entry.label}
-                </div>
+                <React.Fragment key={index}>
+                    {/* The heading sits above the first category rather than
+                        above the column, because Search and Favorites are not
+                        categories and a heading over the whole column said they
+                        were. It is a label, not a title. */}
+                    {index === categoryHeadingIndex(props.entries) && (
+                        <div className="groupsColumnTitle">Categories</div>
+                    )}
+                    <div
+                        className={names.join(' ')}
+                        // the browser scrolls the focused row into view rather than
+                        // our own scroll model. The pill rail's worst defect was
+                        // focus moving with nothing following it.
+                        ref={(element) =>
+                            props.isFocused &&
+                            index === props.focusedIndex &&
+                            element?.scrollIntoView({ block: 'nearest' })
+                        }
+                        onClick={(event) => {
+                            event.stopPropagation();
+                            props.onSelect(index);
+                        }}
+                        // onMouseMove rather than onMouseEnter, which only fires on
+                        // crossing the row's boundary: a pointer already parked on
+                        // a row when the column *gains* focus would never correct
+                        // the cursor, and the next direction press would move from
+                        // somewhere the user is not looking. Unthrottled because
+                        // the browser does the hit-testing and React bails out of
+                        // re-rendering when the index is unchanged - unlike the
+                        // canvas list, where every mousemove would repaint
+                        // everything.
+                        onMouseMove={() => props.onHover && props.onHover(index)}
+                    >
+                        {entry.label}
+                    </div>
+                </React.Fragment>
             );
         })}
     </div>

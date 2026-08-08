@@ -4,6 +4,32 @@ import upcomintRecordingMock from './recordings.upcoming.json';
 import recordingsMock from './recordings.json';
 import channelTagsMock from './channelTags.json';
 import channelM3UMock from './channels.m3u.json';
+import { shiftFixtureSeconds } from './FixtureClock';
+
+interface FixtureEvent {
+    start: number;
+    stop: number;
+}
+
+/**
+ * The EPG fixture with its timestamps moved onto today.
+ *
+ * Recomputed on every call rather than once: the app re-requests the grid as
+ * the user scrolls, and a fixture frozen at page load would drift out from
+ * under a long session. It is a thousand events - cheap enough that caching it
+ * would be optimising the harness rather than the app.
+ */
+const shiftedEpg = () => {
+    const now = Date.now();
+    return {
+        ...epgMock,
+        entries: (epgMock.entries as FixtureEvent[]).map((event) => ({
+            ...event,
+            start: shiftFixtureSeconds(event.start, now),
+            stop: shiftFixtureSeconds(event.stop, now)
+        }))
+    };
+};
 
 /**
  * Depending on local development or emulator usage
@@ -28,7 +54,7 @@ export default class MockHttpProxyServiceAdapter implements HttpProxyInterface {
         if (url.includes('api/channel/grid')) {
             return Promise.resolve((channelMock.result as unknown) as TResult);
         } else if (url.includes('api/epg/events/grid')) {
-            return Promise.resolve((epgMock as unknown) as TResult);
+            return Promise.resolve((shiftedEpg() as unknown) as TResult);
         } else if (url.includes('api/dvr/entry/grid_upcoming')) {
             return (Promise.resolve(upcomintRecordingMock as unknown) as unknown) as TResult;
         } else if (url.includes('api/dvr/entry/grid_finished')) {

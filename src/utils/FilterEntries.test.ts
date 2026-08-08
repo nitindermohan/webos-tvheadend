@@ -1,4 +1,12 @@
-import { buildCategoryEntries, buildFilterEntries, indexOfFilter, labelForFilter } from './FilterEntries';
+import {
+    buildCategoryEntries,
+    buildFilterEntries,
+    categoryHeadingIndex,
+    indexOfFilter,
+    isEntryActive,
+    labelForFilter,
+    SEARCH_ENTRY
+} from './FilterEntries';
 import ChannelTag from '../models/ChannelTag';
 import { ALL_CHANNELS, FAVORITE_CHANNELS, tagFilter } from '../models/ChannelFilter';
 
@@ -82,5 +90,58 @@ describe('labelForFilter', () => {
 
     it('names All when All is active', () => {
         expect(labelForFilter(entries, ALL_CHANNELS)).toBe('All');
+    });
+});
+
+describe('categoryHeadingIndex', () => {
+    // The column leads with Search and Favorites, which are not categories. A
+    // heading over the whole column labelled both of them as one.
+    const columnEntries = () => [SEARCH_ENTRY, ...buildFilterEntries(tags, ['tag-movies'])];
+
+    it('puts the heading above All, not above the column', () => {
+        const entries = columnEntries();
+        const index = categoryHeadingIndex(entries);
+        expect(entries[index].label).toBe('All');
+        expect(index).toBeGreaterThan(0);
+    });
+
+    it('skips every leading row that is not a category', () => {
+        const entries = columnEntries();
+        entries.slice(0, categoryHeadingIndex(entries)).forEach((entry) => {
+            expect(['search', 'favorites']).toContain(entry.filter.kind);
+        });
+    });
+
+    it('follows the rows rather than a fixed index', () => {
+        // adding or removing a leading row must move the heading with it, or
+        // it silently mislabels one more thing
+        const withSearch = categoryHeadingIndex(columnEntries());
+        const withoutSearch = categoryHeadingIndex(buildFilterEntries(tags, ['tag-movies']));
+        expect(withSearch - withoutSearch).toBe(1);
+    });
+
+    it('reports no heading when there are no categories to head', () => {
+        expect(categoryHeadingIndex([SEARCH_ENTRY])).toBe(-1);
+    });
+});
+
+describe('isEntryActive', () => {
+    it('keeps the search row active once a query has been typed', () => {
+        // compared by value, the row's empty-query filter stops matching the
+        // moment a character arrives - the one moment the user most needs to
+        // see where they are
+        expect(isEntryActive(SEARCH_ENTRY, { kind: 'search', query: 'zdf' })).toBe(true);
+    });
+
+    it('does not light the search row for any other filter', () => {
+        expect(isEntryActive(SEARCH_ENTRY, ALL_CHANNELS)).toBe(false);
+        expect(isEntryActive(SEARCH_ENTRY, FAVORITE_CHANNELS)).toBe(false);
+    });
+
+    it('still compares other rows by value', () => {
+        const entries = buildFilterEntries(tags, ['tag-movies']);
+        const movies = entries.find((entry) => entry.label === 'Movies') as typeof entries[0];
+        expect(isEntryActive(movies, tagFilter('tag-movies'))).toBe(true);
+        expect(isEntryActive(movies, tagFilter('tag-news'))).toBe(false);
     });
 });

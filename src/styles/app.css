@@ -365,13 +365,16 @@ body {
     z-index: 21;
 }
 
+/* Now a section label between rows rather than a title above the column, so it
+   needs space above it to separate it from the row it does *not* describe.
+   More above than below, so it groups with what follows. */
 .groupsColumnTitle {
     font-size: calc(20px * var(--font-scale));
     font-weight: 700;
     letter-spacing: 2px;
     text-transform: uppercase;
     color: var(--text-muted);
-    padding: 0 24px 18px 24px;
+    padding: 26px 24px 10px 24px;
 }
 
 .groupsColumnItem {

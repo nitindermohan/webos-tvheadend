@@ -28,6 +28,21 @@ export const SEARCH_ENTRY: FilterEntry = { label: SEARCH_LABEL, filter: searchFi
 export const isEntryActive = (entry: FilterEntry, activeFilter: ChannelFilter): boolean =>
     entry.filter.kind === 'search' ? activeFilter.kind === 'search' : isSameFilter(entry.filter, activeFilter);
 
+/**
+ * Which row the "Categories" heading belongs above, or -1 for no heading.
+ *
+ * The column is not a list of categories. It leads with Search, which is an
+ * action, then Favorites, which is a filter of its own and pointedly not a
+ * category - and only then the categories themselves. A single heading over
+ * the whole column labelled the first two rows as something they are not.
+ *
+ * Derived from the entries rather than hardcoded to an index, so adding or
+ * removing a leading row moves the heading with it instead of silently
+ * mislabelling one more thing.
+ */
+export const categoryHeadingIndex = (entries: FilterEntry[]): number =>
+    entries.findIndex((entry) => entry.filter.kind === 'all' || entry.filter.kind === 'tag');
+
 export interface FilterEntry {
     label: string;
     filter: ChannelFilter;
