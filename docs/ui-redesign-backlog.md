@@ -264,11 +264,6 @@ deliberately left alone there because neither is a colour question.
 
 ## Deferred from the search work (2026-08-08)
 
-- **No search in the EPG.** `SEARCH_ENTRY` is prepended by `ChannelList` only,
-  not folded into `buildFilterEntries`, because the guide shares that list and
-  has nowhere to put the input. A row that appears in both places and works in
-  one is worse than a row in one place — but the guide is also where a long
-  lineup hurts most, so this is worth doing properly rather than leaving.
 - **Hold-OK has no pointer equivalent.** Both hold-OK gestures — favourite in
   the channel list, delete in the recordings list — are D-pad only. The Magic
   Remote's pointer can click a row (which selects) but cannot press-and-hold,
