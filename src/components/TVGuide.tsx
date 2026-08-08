@@ -13,7 +13,9 @@ import RemoteKeys from '../utils/RemoteKeys';
 import { visibleEvents } from '../utils/EventWindow';
 import DialogPopup from './DialogPopup';
 import GroupsColumn, { GROUPS_WIDTH } from './GroupsColumn';
-import { buildFilterEntries, indexOfFilter } from '../utils/FilterEntries';
+import ChannelSearchBar, { SEARCH_BAR_HEIGHT, SearchExit } from './ChannelSearchBar';
+import { ALL_CHANNELS, searchFilter } from '../models/ChannelFilter';
+import { buildFilterEntries, indexOfFilter, SEARCH_ENTRY } from '../utils/FilterEntries';
 import { wrapIndex } from '../utils/ListNavigation';
 import CategoryStore from '../utils/CategoryStore';
 import { scaled } from '../utils/Appearance';
@@ -93,9 +95,19 @@ const TVGuide = (props: {
     // The category sidebar. It is always on screen - the grid is drawn into the
     // remaining width rather than being overlapped - so it needs no open/close
     // state, only whether it holds focus and which row the cursor is on.
-    const groupEntries = buildFilterEntries(channelTags, CategoryStore.getSelectedTagUuids());
+    // Search leads, as it does in the channel list. The guide is where a long
+    // lineup hurts most - eight rows at a time against a nine-hundred-channel
+    // lineup - so if it belongs anywhere it belongs here.
+    const groupEntries = [SEARCH_ENTRY, ...buildFilterEntries(channelTags, CategoryStore.getSelectedTagUuids())];
     const [isGroupsFocused, setGroupsFocused] = useState(false);
     const [groupsIndex, setGroupsIndex] = useState(() => Math.max(0, indexOfFilter(groupEntries, activeFilter)));
+    const [isSearchFocused, setSearchFocused] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
+    // The unmount cleanup runs with the closure from the render that mounted
+    // this component. A ref kept current is the only way for it to see the
+    // filter as it stands at unmount.
+    const activeFilterRef = useRef(activeFilter);
+    activeFilterRef.current = activeFilter;
 
     const mDrawingRect = new Rect();
     const mMeasuringRect = new Rect();
@@ -860,6 +872,12 @@ const TVGuide = (props: {
             }
         }
 
+        // the field owns its keys entirely; ChannelSearchBar decides what
+        // escapes back here, and everything else has to reach the input
+        if (isSearchFocused) {
+            return;
+        }
+
         if (isGroupsFocused) {
             switch (keyCode) {
                 case RemoteKeys.ARROW_UP:
@@ -996,10 +1014,59 @@ const TVGuide = (props: {
 
     const applyGroupAt = (index: number) => {
         const entry = groupEntries[index];
+        if (!entry) {
+            setGroupsFocused(false);
+            return;
+        }
+        if (entry.filter.kind === 'search') {
+            openSearch();
+            return;
+        }
         // AppContext pins the playing channel across the change, so switching
         // category here never interrupts what is playing behind the guide
-        entry && setActiveFilter(entry.filter);
+        setActiveFilter(entry.filter);
         setGroupsFocused(false);
+    };
+
+    /** Enter the search field, keeping whatever was typed before. */
+    const openSearch = () => {
+        setActiveFilter(searchFilter(searchQuery));
+        setGroupsFocused(false);
+        setSearchFocused(true);
+    };
+
+    /**
+     * Leave search and put the lineup back. Clears the query as well as the
+     * filter - a search still showing its text but no longer applied is a
+     * control that lies about what the grid is showing.
+     */
+    const closeSearch = (toColumn: boolean) => {
+        setSearchQuery('');
+        setActiveFilter(ALL_CHANNELS);
+        setSearchFocused(false);
+        setGroupsFocused(toColumn);
+        focus();
+    };
+
+    const updateSearchQuery = (query: string) => {
+        setSearchQuery(query);
+        setActiveFilter(searchFilter(query));
+        // onto the first genuine match rather than the pinned playing channel,
+        // which is usually first and is not what was searched for. The
+        // activeFilter effect below re-runs and scrolls; this is the position
+        // it should scroll to.
+        setCurrentChannelPosition(epgData.getFirstMatchPosition());
+    };
+
+    /** Where each way out of the search field lands in the guide. */
+    const handleSearchExit = (exit: SearchExit) => {
+        if (exit === 'cancel') {
+            closeSearch(true);
+            return;
+        }
+        setSearchFocused(false);
+        setGroupsFocused(exit === 'column');
+        focus();
     };
 
     const scrollDown = () => {
@@ -1185,6 +1252,19 @@ const TVGuide = (props: {
         updateCanvas();
     }, [activeFilter, favoritesVersion]);
 
+    useEffect(
+        () => () => {
+            // A search lasts exactly as long as this screen, as it does in the
+            // channel list. The query lives in component state and the filter in
+            // context, so without this the two survive differently: reopening
+            // the guide would show an empty field above a still-filtered grid.
+            if (activeFilterRef.current.kind === 'search') {
+                setActiveFilter(ALL_CHANNELS);
+            }
+        },
+        []
+    );
+
     const updateCanvas = () => {
         if (canvas.current) {
             const ctx = canvas.current.getContext('2d');
@@ -1222,12 +1302,34 @@ const TVGuide = (props: {
                 onHover={(index) => isGroupsFocused && setGroupsIndex(index)}
             />
 
+            {/* Visible for as long as the search is applied, not just while it
+                has focus: stepping into the grid must not hide what produced
+                the rows in it. */}
+            {activeFilter.kind === 'search' && (
+                <ChannelSearchBar
+                    query={searchQuery}
+                    onQueryChange={updateSearchQuery}
+                    matchCount={searchQuery && !epgData.isFilterEmpty() ? epgData.getFilterMatchCount() : null}
+                    noMatches={!!searchQuery && epgData.isFilterEmpty()}
+                    isFocused={isSearchFocused}
+                    onExit={handleSearchExit}
+                />
+            )}
+
             {/* shifted right by exactly the width getWidth() subtracts, so the
-                grid's own 0-origin coordinate space starts where the sidebar ends */}
+                grid's own 0-origin coordinate space starts where the sidebar
+                ends - and down by the search bar's height while one is open,
+                which is cheaper and safer than threading a second origin
+                through every y-coordinate in the draw code. The grid draws
+                timebar + 8 rows, well short of the viewport, so the shift costs
+                no rows. */}
             <div
                 className="programguide-contents"
                 ref={programguideContents}
-                style={{ marginLeft: GROUPS_WIDTH }}
+                style={{
+                    marginLeft: GROUPS_WIDTH,
+                    marginTop: activeFilter.kind === 'search' ? SEARCH_BAR_HEIGHT : 0
+                }}
             >
                 <canvas ref={canvas} width={getWidth()} height={getHeight()} style={{ display: 'block' }} />
             </div>

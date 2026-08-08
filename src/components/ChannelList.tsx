@@ -9,6 +9,7 @@ import EPGEvent from '../models/EPGEvent';
 import EPGChannel from '../models/EPGChannel';
 import EPGUtils from '../utils/EPGUtils';
 import GroupsColumn, { GROUPS_WIDTH } from './GroupsColumn';
+import ChannelSearchBar, { SEARCH_BAR_HEIGHT, SearchExit } from './ChannelSearchBar';
 import {
     buildFilterEntries,
     FilterEntry,
@@ -31,14 +32,6 @@ import { scaled } from '../utils/Appearance';
 
 const VERTICAL_SCROLL_TOP_PADDING_ITEM = 5;
 const IS_DEBUG = false;
-
-/**
- * The search bar's height, applied to the element inline so the rendered
- * height *is* the number the canvas offsets its rows by. Same arrangement the
- * old category rail used, and for the reason that one earned: a CSS height and
- * a drawing constant that are merely supposed to agree eventually do not.
- */
-export const SEARCH_BAR_HEIGHT = 86;
 
 enum State {
     NORMAL = 'normal',
@@ -184,7 +177,6 @@ const ChannelList = (props: {
     ];
     const [groupsIndex, setGroupsIndex] = useState(() => Math.max(0, indexOfFilter(groupEntries, activeFilter)));
     const [searchQuery, setSearchQuery] = useState('');
-    const searchInput = useRef<HTMLInputElement>(null);
     // The unmount cleanup runs with the closure from the render that mounted
     // this component, where activeFilter was whatever it was then. A ref kept
     // current is the only way for it to see the filter as it stands at unmount.
@@ -620,44 +612,18 @@ const ChannelList = (props: {
         listWrapper.current?.focus();
     };
 
-    /**
-     * Keys while the search field has focus.
-     *
-     * Everything not named here is left to the input, which is the whole
-     * reason this is a separate handler: the list's own handler treats digits
-     * and letters as navigation, and routing typing through it would make the
-     * field unusable for exactly the queries it exists to collect.
-     */
-    const handleSearchKeyPress = (event: React.KeyboardEvent<HTMLInputElement>) => {
-        switch (event.keyCode) {
-            case RemoteKeys.BACK:
-                event.stopPropagation();
-                // to the column rather than the list, so BACK retraces the way
-                // in instead of dropping the user somewhere they did not come
-                // from
-                closeSearch(State.GROUPS);
-                break;
-            case RemoteKeys.OK:
-            case RemoteKeys.ARROW_DOWN:
-                // into the results. The query stays applied - this is
-                // "I have typed enough, now let me pick one".
-                event.stopPropagation();
-                setState(State.NORMAL);
-                listWrapper.current?.focus();
-                break;
-            case RemoteKeys.ARROW_LEFT:
-                event.stopPropagation();
-                setState(State.GROUPS);
-                listWrapper.current?.focus();
-                break;
-            default:
-                // Stop the bubble but do not preventDefault: the keystroke
-                // still reaches the input and becomes a character, while the
-                // list handler on the ancestor never sees it. Without this,
-                // typing a channel number would zap channels as it went.
-                event.stopPropagation();
-                break;
+    /** Where each way out of the search field lands in this screen. */
+    const handleSearchExit = (exit: SearchExit) => {
+        if (exit === 'cancel') {
+            // to the column rather than the list, so BACK retraces the way in
+            // instead of dropping the user somewhere they did not come from
+            closeSearch(State.GROUPS);
+            return;
         }
+        // 'accept' keeps the query and moves into the results; 'column' keeps it
+        // and steps back to the filter list. Neither clears - only BACK does.
+        setState(exit === 'accept' ? State.NORMAL : State.GROUPS);
+        listWrapper.current?.focus();
     };
 
     const handleKeyPress = (event: React.KeyboardEvent<HTMLDivElement>) => {
@@ -1148,16 +1114,6 @@ const ChannelList = (props: {
         updateCanvas();
     }, [logoVersion, fontVersion]);
 
-    useEffect(() => {
-        // Focus has to land on the input itself, not the wrapper: it is what
-        // raises the TV's on-screen keyboard, and without it the field would
-        // be visible and uncollectable - the user would type into the channel
-        // list behind it.
-        if (state === State.SEARCH) {
-            searchInput.current?.focus();
-        }
-    }, [state]);
-
     useEffect(
         () => () => {
             // A search lasts exactly as long as this screen. The query lives in
@@ -1221,38 +1177,23 @@ const ChannelList = (props: {
                 what produced them, or the list becomes an unexplained subset of
                 the lineup. */}
             {activeFilter.kind === 'search' && (
-                <div
-                    className={state === State.SEARCH ? 'channelSearch focused' : 'channelSearch'}
-                    style={{ height: SEARCH_BAR_HEIGHT }}
-                    onClick={(event) => event.stopPropagation()}
-                >
-                    <input
-                        ref={searchInput}
-                        className="channelSearchInput"
-                        type="text"
-                        value={searchQuery}
-                        placeholder="Channel name or number"
-                        // A plain input rather than Enact's: Moonstone's widgets
-                        // carry their own styling and ignore the theme, which is
-                        // already the one thing in this app that looks like a
-                        // different application (see the backlog). This is also
-                        // what raises the TV's on-screen keyboard - webOS binds
-                        // that to focus on a real input.
-                        onChange={(event) => updateSearchQuery(event.target.value)}
-                        onKeyDown={handleSearchKeyPress}
-                    />
-                    <span className="channelSearchCount">
-                        {searchQuery && !epgData.isFilterEmpty() ? epgData.getFilterMatchCount() + ' found' : ''}
-                    </span>
-                </div>
+                <ChannelSearchBar
+                    query={searchQuery}
+                    onQueryChange={updateSearchQuery}
+                    matchCount={searchQuery && !epgData.isFilterEmpty() ? epgData.getFilterMatchCount() : null}
+                    noMatches={!!searchQuery && epgData.isFilterEmpty()}
+                    isFocused={state === State.SEARCH}
+                    onExit={handleSearchExit}
+                />
             )}
 
-            {epgData.isFilterEmpty() && (
+            {/* search is deliberately absent: the bar reports its own empty
+                result, is always on screen while a search is applied, and sits
+                exactly where this banner would - two messages in one place. */}
+            {epgData.isFilterEmpty() && activeFilter.kind !== 'search' && (
                 <div className="channelListEmptyBanner" onClick={(event) => event.stopPropagation()}>
                     {activeFilter.kind === 'favorites'
                         ? 'No favorites yet — hold OK on a channel to add it'
-                        : activeFilter.kind === 'search'
-                        ? 'No channels matching "' + searchQuery + '"'
                         : 'No channels in ' + labelForFilter(groupEntries, activeFilter)}
                 </div>
             )}

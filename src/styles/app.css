@@ -460,6 +460,14 @@ body {
     flex: none;
     color: var(--text-secondary);
     font-size: calc(24px * var(--font-scale));
+    white-space: nowrap;
+}
+
+/* Louder than the count, because it is correcting an impression the screen is
+   otherwise giving: both hosts fall back to the whole lineup when nothing
+   matches, so this is the only thing saying the rows below are not results. */
+.channelSearchCount.empty {
+    color: var(--focus);
 }
 
 .categorySetup {
