@@ -252,6 +252,28 @@ body {
     font-weight: bold;
 }
 
+/* Enact's LabeledIconButton clamps its label to the width of the button and
+   ellipsises the overflow, which clipped "Recordings" to "Recordin..." and
+   "Appearance" to "Appeara..." - 180px of box for 185px of text. Two of seven
+   rows reading as truncated is past the point where it looks like a long word
+   and starts looking like a rendering fault.
+
+   Attribute selectors because the class names are CSS-module hashes: matching
+   the stable prefix survives an Enact upgrade rebuilding the suffix, and the
+   rule degrades to doing nothing rather than to breaking if the prefix ever
+   changes. The menu is right-aligned and floats over the app, so letting the
+   labels take their natural width costs no layout elsewhere. */
+.menu [class*='LabeledIconButton_label'] {
+    max-width: none;
+    overflow: visible;
+    text-overflow: clip;
+}
+
+.menu [class*='LabeledIconButton_labeledIconButton'],
+.menu [class*='LabeledIcon_labeledIcon'] {
+    max-width: none;
+}
+
 .channelInfo {
     position: absolute;
     width: 100%;
